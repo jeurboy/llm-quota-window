@@ -35,7 +35,7 @@ function renderProviders(providers) {
       const used = Math.max(0, Math.min(100, Math.round(window.usedPercent)));
       return `<div class="limit"><div class="limit-copy"><strong>${window.name}</strong><span>${100 - used}% left · ${resetText(window.resetsAt)}</span></div><div class="bar"><i style="width:${100 - used}%"></i></div></div>`;
     }).join("");
-    const todayTokens = provider.tokenUsage ? `<span class="tokens">Today ${compactTokens(provider.tokenUsage.dayTokens)} tokens</span>` : "";
+    const todayTokens = provider.tokenUsage ? `<span class="tokens">${provider.tokenUsage.dayLabel || "today"} ${compactTokens(provider.tokenUsage.dayTokens)} tokens</span>` : "";
     return `<article class="provider"><div class="provider-title"><strong>${provider.label}</strong>${todayTokens}</div>${windows}</article>`;
   }).join("");
 }

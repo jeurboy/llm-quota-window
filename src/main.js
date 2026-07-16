@@ -5,6 +5,7 @@ const { existsSync, readFileSync, readdirSync, statSync } = require("fs");
 const { homedir } = require("os");
 const { delimiter, join } = require("path");
 const { singleFlight } = require("./single-flight");
+const { selectCodexDailyUsageBucket } = require("./codex-usage");
 
 const execFileAsync = promisify(execFile);
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -523,7 +524,7 @@ async function getCodexQuota() {
   if (!snapshot) throw new Error("Codex is signed out. Run `codex login` and refresh.");
   const dailyBuckets = tokenUsage.dailyUsageBuckets || [];
   const today = localDateKey();
-  const todayBucket = dailyBuckets.find((bucket) => bucket.startDate === today) || null;
+  const { bucket: dailyBucket, isToday } = selectCodexDailyUsageBucket(dailyBuckets, today);
 
   return {
     provider: "codex",
@@ -538,9 +539,9 @@ async function getCodexQuota() {
     tokenUsage: {
       source: "Account usage",
       lifetimeTokens: tokenUsage.summary?.lifetimeTokens ?? null,
-      dayTokens: todayBucket?.tokens ?? 0,
-      day: today,
-      dayLabel: "today",
+      dayTokens: dailyBucket?.tokens ?? 0,
+      day: dailyBucket?.startDate || today,
+      dayLabel: isToday ? "today" : dailyBucket ? `latest · ${dailyBucket.startDate}` : "today",
       peakDailyTokens: tokenUsage.summary?.peakDailyTokens ?? null,
     },
     updatedAt: new Date().toISOString(),

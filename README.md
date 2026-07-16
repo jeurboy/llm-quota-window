@@ -38,7 +38,7 @@ The current macOS release is built for Apple Silicon (M1 or newer).
 
 ### macOS DMG
 
-1. Open `releases/v0.1.0/Quota Window-0.1.0-arm64.dmg`.
+1. Open `releases/v0.1.1/Quota Window-0.1.1-arm64.dmg`.
 2. Drag **Quota Window** into **Applications**.
 3. Open **Quota Window** from Applications.
 
@@ -52,14 +52,14 @@ open "/Applications/Quota Window.app"
 You can also run the unpacked app directly:
 
 ```bash
-open "releases/v0.1.0/mac-arm64/Quota Window.app"
+open "releases/v0.1.1/mac-arm64/Quota Window.app"
 ```
 
-For the ZIP release, extract `Quota Window-0.1.0-arm64-mac.zip`, then open `Quota Window.app`.
+For the ZIP release, extract `Quota Window-0.1.1-arm64-mac.zip`, then open `Quota Window.app`.
 
 ### Windows
 
-After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.1.0/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
+After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.1.1/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
 
 ## Build installers
 
@@ -70,7 +70,7 @@ npm run dist:mac  # macOS .dmg and .zip
 npm run dist:win  # Windows installer and portable .exe
 ```
 
-The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.0` is written to `releases/v0.1.0/`. Bumping the package version automatically creates a new release directory on the next build.
+The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.1` is written to `releases/v0.1.1/`. Bumping the package version automatically creates a new release directory on the next build.
 The shared `releases/README.md` contains user-facing installation and first-use steps, ready to attach alongside the installer files on GitHub Releases.
 
 Run the script directly when needed:
