@@ -44,6 +44,77 @@ function resolveCli(name) {
   return name;
 }
 
+function isWindowsCommandScript(command) {
+  return process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+}
+
+// spawn's shell:true mode on Windows joins the command and args into one string
+// without quoting, so cmd.exe splits on any space in the path (e.g. "C:\Program
+// Files\...") or in an argument. Quote anything that needs it before that join.
+function quoteForWindowsShell(value) {
+  const stringValue = String(value);
+  if (stringValue !== "" && !/[\s"^&|<>()%!]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function runCli(command, args) {
+  const executable = resolveCli(command);
+  const options = {
+    timeout: REQUEST_TIMEOUT_MS,
+    windowsHide: true,
+    maxBuffer: 1_000_000,
+  };
+  if (!isWindowsCommandScript(executable)) return execFileAsync(executable, args, options);
+
+  // npm installs Windows CLIs as .cmd files. Node cannot execFile those wrappers,
+  // so run them through cmd.exe while preserving their stdout for JSON responses.
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const processHandle = spawn(
+      quoteForWindowsShell(executable),
+      args.map(quoteForWindowsShell),
+      { shell: true, windowsHide: true },
+    );
+    const timeout = setTimeout(() => {
+      processHandle.kill();
+      const error = new Error(`${command} timed out.`);
+      error.stderr = stderr;
+      reject(error);
+    }, REQUEST_TIMEOUT_MS);
+
+    processHandle.stdout.on("data", (chunk) => { stdout += chunk; });
+    processHandle.stderr.on("data", (chunk) => { stderr += chunk; });
+    processHandle.on("error", (error) => {
+      clearTimeout(timeout);
+      error.stderr = stderr;
+      reject(error);
+    });
+    processHandle.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) return resolve({ stdout, stderr });
+      const error = new Error(`${command} exited with code ${code}.`);
+      error.code = code;
+      error.stderr = stderr;
+      reject(error);
+    });
+  });
+}
+
+function spawnCli(command, args, options = {}) {
+  const executable = resolveCli(command);
+  const useShell = isWindowsCommandScript(executable);
+  return spawn(
+    useShell ? quoteForWindowsShell(executable) : executable,
+    useShell ? args.map(quoteForWindowsShell) : args,
+    {
+      ...options,
+      shell: useShell,
+      windowsHide: true,
+    },
+  );
+}
+
 function createWindow(show = true) {
   const { workArea } = screen.getPrimaryDisplay();
   const width = 660;
@@ -357,11 +428,7 @@ function commandError(command, error) {
 
 async function runJson(command, args) {
   try {
-    const { stdout } = await execFileAsync(resolveCli(command), args, {
-      timeout: REQUEST_TIMEOUT_MS,
-      windowsHide: true,
-      maxBuffer: 1_000_000,
-    });
+    const { stdout } = await runCli(command, args);
     return JSON.parse(stdout.trim());
   } catch (error) {
     throw new Error(commandError(command, error));
@@ -374,9 +441,8 @@ function callCodex(method, params = null) {
     let buffer = "";
     let nextId = 1;
     const pending = new Map();
-    const processHandle = spawn(resolveCli("codex"), ["app-server", "--stdio"], {
+    const processHandle = spawnCli("codex", ["app-server", "--stdio"], {
       stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
     });
 
     const finish = (callback, value) => {
@@ -656,7 +722,7 @@ async function refreshAndBroadcast(force = false) {
 
 async function pingClaudeRequest() {
   try {
-    await execFileAsync(resolveCli("claude"), [
+    await runCli("claude", [
       "--safe-mode",
       "--print",
       "Reply only with: pong",
