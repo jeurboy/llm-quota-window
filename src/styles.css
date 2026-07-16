@@ -23,6 +23,7 @@ button { color: inherit; font: inherit; cursor: pointer; }
 .plan { color: #a3b0d1; font-size: 10px; margin: 3px 0 0; text-transform: capitalize; }
 .state { color: #57e5b1; background: #143d37; border: 1px solid #27624f; border-radius: 999px; padding: 5px 8px; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .state.offline { color: #ffd08e; background: #4a3620; border-color: #79562e; }
+.state.retrying { color: #81d7ff; background: #173c58; border-color: #2b719b; }
 .windows { margin-top: 8px; }
 .quota-window { display: flex; align-items: center; gap: 9px; padding: 5px 0; border-top: 1px solid #263557; }
 .quota-window:first-child { border-top: 0; padding-top: 0; }
@@ -62,4 +63,5 @@ html[data-theme="light"] .window-button:hover, html[data-theme="light"] .refresh
 html[data-theme="light"] .window-button.active { color: #075044; border-color: #53cda6; background: #baf3df; }
 html[data-theme="light"] .state { color: #08755b; background: #d6faec; border-color: #9ce4ca; }
 html[data-theme="light"] .state.offline { color: #8a5412; background: #fff0d9; border-color: #ecc68b; }
+html[data-theme="light"] .state.retrying { color: #0b6d9f; background: #ddf4ff; border-color: #9bd5ee; }
 html[data-theme="light"] .error { color: #883e28; background: #fff0e9; }

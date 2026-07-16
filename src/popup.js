@@ -30,7 +30,7 @@ function renderProviders(providers) {
     ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(updateTime))}`
     : "Usage unavailable";
   providersElement.innerHTML = providers.map((provider) => {
-    if (!provider.connected) return `<article class="provider error"><div class="provider-title"><strong>${provider.label}</strong><span>Action needed</span></div><p>${provider.error || "Not connected"}</p></article>`;
+    if (!provider.connected) return `<article class="provider error"><div class="provider-title"><strong>${provider.label}</strong><span>${provider.retrying ? "Retrying" : "Action needed"}</span></div><p>${provider.error || "Not connected"}</p></article>`;
     const windows = provider.windows.map((window) => {
       const used = Math.max(0, Math.min(100, Math.round(window.usedPercent)));
       return `<div class="limit"><div class="limit-copy"><strong>${window.name}</strong><span>${100 - used}% left · ${resetText(window.resetsAt)}</span></div><div class="bar"><i style="width:${100 - used}%"></i></div></div>`;
@@ -61,14 +61,14 @@ function renderUpdate(state) {
   else updateButton.textContent = "Check updates";
 }
 
-async function refresh() {
+async function refresh(force = false) {
   refreshButton.disabled = true;
   refreshButton.classList.add("spinning");
-  try { renderProviders(await window.quotaWindow.refresh()); }
+  try { renderProviders(await window.quotaWindow.refresh(force)); }
   finally { refreshButton.disabled = false; refreshButton.classList.remove("spinning"); }
 }
 
-refreshButton.addEventListener("click", refresh);
+refreshButton.addEventListener("click", () => refresh(true));
 pingButton.addEventListener("click", async () => {
   pingButton.disabled = true;
   pingButton.textContent = "Pinging…";

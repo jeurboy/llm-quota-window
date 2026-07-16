@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("quotaWindow", {
-  refresh: () => ipcRenderer.invoke("quota:refresh"),
+  refresh: (force = false) => ipcRenderer.invoke("quota:refresh", force),
   openUsage: (provider) => ipcRenderer.invoke("app:openUsage", provider),
   minimize: () => ipcRenderer.send("app:minimize"),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke("app:setAlwaysOnTop", enabled),

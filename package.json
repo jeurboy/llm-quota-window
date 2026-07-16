@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
+    "test": "node --test",
     "icons:tray": "node scripts/build-tray-icon.mjs",
     "dist:mac": "node scripts/build-release.mjs --mac",
     "dist:win": "node scripts/build-release.mjs --win",

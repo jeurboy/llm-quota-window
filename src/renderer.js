@@ -109,7 +109,10 @@ function render(providers) {
   latestProviders = providers;
   cards.replaceChildren();
   const connectedCount = providers.filter((provider) => provider.connected).length;
-  summaryText.textContent = connectedCount === 2 ? "Both local accounts are connected." : `${connectedCount} of 2 local accounts connected.`;
+  const retryingCount = providers.filter((provider) => provider.retrying).length;
+  summaryText.textContent = retryingCount
+    ? `${retryingCount} account is rate limited and will retry automatically.`
+    : connectedCount === 2 ? "Both local accounts are connected." : `${connectedCount} of 2 local accounts connected.`;
   connectionDot.classList.toggle("offline", connectedCount !== 2);
   const updateTime = providers.map((provider) => provider.updatedAt).filter(Boolean).sort().at(-1);
   lastUpdated.textContent = updateTime ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date(updateTime))}` : "";
@@ -120,8 +123,9 @@ function render(providers) {
     card.querySelector(".provider-name").textContent = provider.label;
     card.querySelector(".plan").textContent = provider.plan ? `${provider.plan} plan` : provider.connected ? "Signed in" : "Not connected";
     const state = card.querySelector(".state");
-    state.textContent = provider.connected ? "LIVE" : "ACTION NEEDED";
-    state.classList.toggle("offline", !provider.connected);
+    state.textContent = provider.retrying ? "RETRYING" : provider.connected ? "LIVE" : "ACTION NEEDED";
+    state.classList.toggle("offline", !provider.connected && !provider.retrying);
+    state.classList.toggle("retrying", Boolean(provider.retrying));
     card.querySelector(".windows").innerHTML = provider.windows.map(windowMarkup).join("") || "<p class=\"empty\">No quota windows were returned by this account.</p>";
     const error = card.querySelector(".error");
     if (provider.error) { error.hidden = false; error.textContent = provider.error; }
@@ -153,11 +157,11 @@ function render(providers) {
   }
 }
 
-async function refresh() {
+async function refresh(force = false) {
   refreshButton.disabled = true;
   refreshButton.textContent = "Checking…";
   try {
-    render(await window.quotaWindow.refresh());
+    render(await window.quotaWindow.refresh(force));
   } catch (error) {
     summaryText.textContent = error.message || "Could not refresh quota windows.";
     connectionDot.classList.add("offline");
@@ -171,7 +175,7 @@ function updateCountdowns() {
   document.querySelectorAll("[data-reset]").forEach((element) => { element.textContent = resetLabel(element.dataset.reset || null); });
 }
 
-refreshButton.addEventListener("click", refresh);
+refreshButton.addEventListener("click", () => refresh(true));
 minimizeButton.addEventListener("click", () => window.quotaWindow.minimize());
 pinButton.addEventListener("click", async () => {
   const enabled = await window.quotaWindow.setAlwaysOnTop(!alwaysOnTop);

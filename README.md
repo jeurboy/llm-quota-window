@@ -7,7 +7,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Claude: the 5-hour session, all-model weekly, and Fable weekly subscription windows, including live percentage used and reset time.
 - Codex: the quota windows returned by the locally installed Codex CLI, plus available reset credits.
 - Tokens: today's Codex account tokens plus lifetime and peak-day totals; Claude Code tokens processed today in local session history (input, output, and cache tokens).
-- A live countdown to each reset, manual refresh, and automatic refresh every minute.
+- A live countdown to each reset, manual refresh, and automatic refresh every 3 minutes.
 - Compact window controls for minimizing the widget into the menu bar/system tray and pinning it always on top; the pin preference is remembered.
 - macOS menu bar and Windows system tray integration with compact quota status, show/hide, refresh, always-on-top, and quit controls. Closing the dashboard keeps the tray app running.
 - Left-clicking the menu-bar/tray icon opens a minimal anchored quota popup; right-clicking opens the full command menu. The popup hides automatically when focus moves elsewhere.

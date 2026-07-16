@@ -4,9 +4,11 @@ const { promisify } = require("util");
 const { existsSync, readFileSync, readdirSync, statSync } = require("fs");
 const { homedir } = require("os");
 const { delimiter, join } = require("path");
+const { singleFlight } = require("./single-flight");
 
 const execFileAsync = promisify(execFile);
 const REQUEST_TIMEOUT_MS = 15_000;
+const QUOTA_CACHE_MS = 3 * 60 * 1000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const RELEASES_API_URL = "https://api.github.com/repos/jeurboy/llm-quota-window/releases/latest";
 const RELEASES_PAGE_URL = "https://github.com/jeurboy/llm-quota-window/releases";
@@ -16,11 +18,13 @@ let tray = null;
 let trayMenu = null;
 let isQuitting = false;
 let latestQuotas = [];
+let lastQuotaRefreshAt = 0;
 let alwaysOnTopPreference = false;
 let themePreference = "system";
 let startOnLoginPreference = false;
 let updateState = { status: "idle", currentVersion: null, latestVersion: null, releaseUrl: RELEASES_PAGE_URL };
 const quotaAlertState = new Map();
+let claudeRetryAt = 0;
 
 function resolveCli(name) {
   const executableNames = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
@@ -155,6 +159,7 @@ function togglePopup() {
 }
 
 function quotaMenuLabel(provider) {
+  if (provider.retrying) return `${provider.label}: retrying soon`;
   if (!provider.connected) return `${provider.label}: action needed`;
   const primaryWindow = provider.windows?.[0];
   if (!primaryWindow) return `${provider.label}: connected`;
@@ -246,7 +251,7 @@ function updateTrayMenu() {
     ...statusItems,
     { type: "separator" },
     { label: mainWindow?.isVisible() ? "Hide dashboard" : "Open dashboard", click: () => mainWindow?.isVisible() ? mainWindow.hide() : showMainWindow() },
-    { label: "Refresh quota", click: () => refreshAndBroadcast() },
+    { label: "Refresh quota", click: () => refreshAndBroadcast(true) },
     { label: "Ping Claude/Fable (start 5-hour window)", click: () => pingClaude().catch(() => {}) },
     { label: "Always on top", type: "checkbox", checked: alwaysOnTopPreference, click: (item) => setAlwaysOnTop(item.checked) },
     { label: "Start on login", type: "checkbox", checked: startOnLoginPreference, click: (item) => setStartOnLogin(item.checked) },
@@ -565,6 +570,10 @@ function toClaudeWindow(item, fallbackName) {
 }
 
 async function getClaudeQuota() {
+  if (Date.now() < claudeRetryAt) {
+    const remainingSeconds = Math.ceil((claudeRetryAt - Date.now()) / 1_000);
+    throw new Error(`Claude usage is temporarily rate limited. Retrying automatically in ${remainingSeconds}s.`);
+  }
   const auth = await runJson("claude", ["auth", "status"]);
   if (!auth.loggedIn) throw new Error("Claude Code is signed out. Run `claude auth login` and refresh.");
 
@@ -577,10 +586,17 @@ async function getClaudeQuota() {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
+    if (response.status === 429) {
+      const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") || "", 10);
+      const waitSeconds = Number.isFinite(retryAfterSeconds) ? Math.max(15, retryAfterSeconds) : 60;
+      claudeRetryAt = Date.now() + (waitSeconds * 1_000);
+      throw new Error(`Claude usage is temporarily rate limited. Retrying automatically in ${waitSeconds}s.`);
+    }
     throw new Error(response.status === 401
       ? "Claude sign-in expired. Run `claude auth login` and refresh."
       : `Claude usage request failed (${response.status}).`);
   }
+  claudeRetryAt = 0;
   const usage = await response.json();
   const limits = Array.isArray(usage.limits) ? usage.limits : [];
   const session = limits.find((item) => item.kind === "session") || usage.five_hour;
@@ -613,23 +629,32 @@ async function loadQuotas() {
       provider: index === 0 ? "claude" : "codex",
       label: index === 0 ? "Claude" : "Codex",
       connected: false,
+      retrying: /temporarily rate limited/i.test(result.reason?.message || ""),
       windows: [],
       error: result.reason?.message || "Could not load this provider.",
       updatedAt: new Date().toISOString(),
     };
   });
+  lastQuotaRefreshAt = Date.now();
   updateTrayMenu();
   return latestQuotas;
 }
 
-async function refreshAndBroadcast() {
-  const providers = await loadQuotas();
+const refreshQuotas = singleFlight(loadQuotas);
+
+async function getQuotas(force = false) {
+  if (!force && latestQuotas.length && Date.now() - lastQuotaRefreshAt < QUOTA_CACHE_MS) return latestQuotas;
+  return refreshQuotas();
+}
+
+async function refreshAndBroadcast(force = false) {
+  const providers = await getQuotas(force);
   sendToWindows("quota:updated", providers);
   checkQuotaAlerts(providers);
   return providers;
 }
 
-async function pingClaude() {
+async function pingClaudeRequest() {
   try {
     await execFileAsync(resolveCli("claude"), [
       "--safe-mode",
@@ -650,13 +675,15 @@ async function pingClaude() {
       maxBuffer: 1_000_000,
     });
     await new Promise((resolve) => setTimeout(resolve, 1_500));
-    return { ok: true, providers: await refreshAndBroadcast() };
+    return { ok: true, providers: await refreshAndBroadcast(true) };
   } catch (error) {
     throw new Error(commandError("Claude", error));
   }
 }
 
-ipcMain.handle("quota:refresh", loadQuotas);
+const pingClaude = singleFlight(pingClaudeRequest);
+
+ipcMain.handle("quota:refresh", (_, force = false) => getQuotas(Boolean(force)));
 ipcMain.handle("app:openUsage", (_, provider) => shell.openExternal(
   provider === "claude" ? "https://claude.ai/settings/usage" : "https://chatgpt.com/codex/settings/usage",
 ));
@@ -687,7 +714,7 @@ app.whenReady().then(() => {
   nativeTheme.on("updated", () => {
     if (themePreference === "system") sendToWindows("app:themeChanged", currentThemeState());
   });
-  setInterval(refreshAndBroadcast, 60 * 1000);
+  setInterval(() => refreshAndBroadcast(true), 3 * 60 * 1000);
   setTimeout(checkForUpdates, 2_500);
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
   app.on("activate", showMainWindow);

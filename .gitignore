@@ -5,6 +5,12 @@ releases/*
 !releases/README.md
 !releases/assets/
 !releases/assets/*.png
+!releases/v*/
+releases/v*/*
+!releases/v*/*.dmg
+!releases/v*/*.zip
+!releases/v*/*.blockmap
+!releases/v*/latest-*.yml
 assets/AppIcon.iconset/
 .DS_Store
 npm-debug.log*
@@ -15,3 +21,4 @@ yarn-error.log*
 .electron/
 .mcp.json
 .aicb
+memory

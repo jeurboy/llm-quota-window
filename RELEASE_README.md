@@ -31,7 +31,7 @@ The macOS build requires Apple Silicon (M1 or newer).
 
 - Install and sign in to [Claude Code](https://code.claude.com/) with `claude auth login`.
 - Install and sign in to the [Codex CLI](https://developers.openai.com/codex/cli/) with `codex login`.
-- Open Quota Window, then press **Refresh now**. The app checks both local accounts once a minute after that.
+- Open Quota Window, then press **Refresh now**. The app checks both local accounts every 3 minutes after that.
 - Click the **Q** in the macOS menu bar or Windows system tray for the compact popup. Right-click it for settings and quit.
 
 Quota Window only reads the credentials and usage data already managed by the official CLIs. It does not upload or store your account credentials.
