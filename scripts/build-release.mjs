@@ -56,20 +56,37 @@ const jobs = target === "--all"
 
 console.log(`Building Quota Window v${version} into ${outputDirectory}/`);
 
+// spawnSync's shell:true mode on Windows joins the command and args into one
+// string without quoting, so cmd.exe splits on any space (e.g. a project path
+// under "C:\Users\Jane Doe\..."). Quote anything that needs it before that join.
+function quoteForWindowsShell(value) {
+  if (value !== "" && !/[\s"^&|<>()%!]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 for (const jobArgs of jobs) {
-  const result = spawnSync(executable, [
+  const useShell = process.platform === "win32";
+  const args = [
     ...jobArgs,
     `--config.directories.output=${outputDirectory}`,
-  ], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      ...(process.platform === "darwin" && !process.env.CSC_IDENTITY_AUTO_DISCOVERY
-        ? { CSC_IDENTITY_AUTO_DISCOVERY: "false" }
-        : {}),
+  ];
+  const result = spawnSync(
+    useShell ? quoteForWindowsShell(executable) : executable,
+    useShell ? args.map(quoteForWindowsShell) : args,
+    {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        ...(process.platform === "darwin" && !process.env.CSC_IDENTITY_AUTO_DISCOVERY
+          ? { CSC_IDENTITY_AUTO_DISCOVERY: "false" }
+          : {}),
+      },
+      // npm exposes electron-builder as a .cmd wrapper on Windows. spawnSync
+      // cannot execute that wrapper directly, so let cmd.exe invoke it.
+      shell: useShell,
+      stdio: "inherit",
     },
-    stdio: "inherit",
-  });
+  );
 
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
