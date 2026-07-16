@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quota Window</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">LOCAL QUOTA MONITOR</p>
+          <h1>Quota Window</h1>
+          <p class="subtitle">Claude Code and Codex usage — live windows, reset times, no cloud sync.</p>
+        </div>
+        <div class="window-actions">
+          <button id="theme-button" class="window-button" type="button" aria-label="Toggle color theme" title="Switch to light theme">Light</button>
+          <button id="pin-button" class="window-button" type="button" aria-pressed="false" title="Keep window on top">Pin</button>
+          <button id="minimize-button" class="window-button minimize-button" type="button" aria-label="Minimize window" title="Minimize window">−</button>
+          <button id="refresh-button" class="refresh-button" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="summary" aria-live="polite">
+        <span id="connection-dot" class="connection-dot"></span>
+        <span id="summary-text">Loading your local CLI accounts…</span>
+        <span id="last-updated"></span>
+      </section>
+
+      <section id="cards" class="cards" aria-live="polite"></section>
+
+      <footer>
+        <span>Refreshes every minute in the background.</span>
+        <label class="login-toggle"><input id="start-on-login" type="checkbox" /> Start on login</label>
+        <button id="update-button" class="footer-button" type="button">Check updates</button>
+        <span class="privacy-note">Credentials remain on this device and are never saved by Quota Window.</span>
+      </footer>
+    </main>
+    <template id="card-template">
+      <article class="provider-card">
+        <div class="card-heading">
+          <div>
+            <p class="provider-name"></p>
+            <p class="plan"></p>
+          </div>
+          <span class="state"></span>
+        </div>
+        <div class="windows"></div>
+        <p class="error" hidden></p>
+        <section class="token-usage" hidden></section>
+        <div class="card-actions">
+          <span class="credits"></span>
+          <div class="action-buttons">
+            <button class="ping-button" type="button" hidden>Ping Fable</button>
+            <button class="usage-link" type="button">Usage page ↗</button>
+          </div>
+        </div>
+      </article>
+    </template>
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "name": "quota-window",
+  "version": "0.1.0",
+  "description": "A local desktop dashboard for Claude Code and Codex subscription quota windows.",
+  "author": "Quota Window Contributors",
+  "main": "src/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "icons:tray": "node scripts/build-tray-icon.mjs",
+    "dist:mac": "node scripts/build-release.mjs --mac",
+    "dist:win": "node scripts/build-release.mjs --win",
+    "dist": "node scripts/build-release.mjs --all"
+  },
+  "devDependencies": {
+    "electron": "^40.4.0",
+    "electron-builder": "^26.8.1",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3"
+  },
+  "build": {
+    "appId": "com.local.quotawindow",
+    "productName": "Quota Window",
+    "directories": {
+      "output": "releases",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/app-icon.png",
+      "assets/tray-icon.svg",
+      "assets/trayTemplate.png",
+      "assets/trayTemplate@2x.png",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "assets/app-icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/app-icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

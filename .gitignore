@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+releases/*
+!releases/README.md
+!releases/assets/
+!releases/assets/*.png
+assets/AppIcon.iconset/
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+.cache/
+.electron/
+.mcp.json
+.aicb

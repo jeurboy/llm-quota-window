@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quota Window</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header>
+        <div class="brand">
+          <img src="../assets/app-icon.png" alt="" />
+          <div><strong>Quota Window</strong><span id="updated-at">Checking usage…</span></div>
+        </div>
+        <button id="popup-refresh" class="icon-button" type="button" title="Refresh quota" aria-label="Refresh quota">↻</button>
+      </header>
+      <section id="popup-providers" class="providers" aria-live="polite"></section>
+      <section class="quick-actions">
+        <button id="popup-ping" type="button">Ping Fable</button>
+        <button id="popup-update" type="button">Check updates</button>
+      </section>
+      <footer>
+        <button id="open-dashboard" type="button">Open dashboard</button>
+        <button id="popup-theme" type="button">Light</button>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
