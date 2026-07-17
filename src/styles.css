@@ -5,6 +5,7 @@ main { min-height: 100vh; margin: auto; padding: 20px 22px 14px; display: flex; 
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .eyebrow { color: #80c9ff; font-size: 9px; font-weight: 750; letter-spacing: .14em; margin: 0 0 6px; }
 h1 { font-size: 32px; line-height: .98; letter-spacing: -.055em; margin: 0; }
+.app-version { display: inline-block; color: #80c9ff; font-size: 11px; font-weight: 720; letter-spacing: -.01em; vertical-align: middle; }
 .subtitle { color: #aab5d6; font-size: 11px; margin: 7px 0 0; max-width: 300px; line-height: 1.35; }
 button { color: inherit; font: inherit; cursor: pointer; }
 .window-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }.window-button { min-width: 31px; height: 29px; border: 1px solid #344c83; background: rgba(20, 31, 63, .86); border-radius: 8px; padding: 0 8px; color: #9fb1d8; font-size: 10px; font-weight: 700; transition: .18s ease; }.window-button:hover { color: #eef4ff; background: #25396e; }.window-button.active { color: #0b3029; border-color: #59dcb2; background: #65e1b9; }.minimize-button { min-width: 29px; padding-bottom: 7px; font-size: 17px; font-weight: 500; }

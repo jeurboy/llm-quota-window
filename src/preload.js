@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("quotaWindow", {
   minimize: () => ipcRenderer.send("app:minimize"),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke("app:setAlwaysOnTop", enabled),
   setTheme: (theme) => ipcRenderer.invoke("app:setTheme", theme),
+  getVersion: () => ipcRenderer.invoke("app:getVersion"),
   getStartOnLogin: () => ipcRenderer.invoke("app:getStartOnLogin"),
   setStartOnLogin: (enabled) => ipcRenderer.invoke("app:setStartOnLogin", enabled),
   checkForUpdates: () => ipcRenderer.invoke("app:checkForUpdates"),

@@ -13,6 +13,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Left-clicking the menu-bar/tray icon opens a minimal anchored quota popup; right-clicking opens the full command menu. The popup hides automatically when focus moves elsewhere.
 - Auto (system), light, and dark themes selectable from the widget, popup, or system tray; Auto reacts when the OS appearance changes.
 - An optional **Ping Fable** action starts or updates Claude's 5-hour usage window with a minimal request, then refreshes the dashboard. Because it calls Claude, it consumes a small amount of quota.
+- Optional Auto Ping Fable can run every 30 minutes, 1 hour, or 2 hours from the tray menu; the choice is saved locally and each ping consumes a small amount of Claude quota.
 - Optional **Start on login** support for macOS and Windows. Login launches stay hidden in the menu bar/system tray until the dashboard is opened.
 - GitHub release checks against `jeurboy/llm-quota-window` at startup and every six hours, with manual checks from the widget or tray and a direct link when a newer version is available.
 - A native alert opens the tray popup when a quota crosses each lower 10% step, when a 5-hour/session allowance drops below 20% left, or when a weekly allowance drops below 10% left. Each reset window is alerted only once per threshold crossing.
@@ -38,7 +39,7 @@ The current macOS release is built for Apple Silicon (M1 or newer).
 
 ### macOS DMG
 
-1. Open `releases/v0.1.1/Quota Window-0.1.1-arm64.dmg`.
+1. Open `releases/v0.1.2/Quota Window-0.1.2-arm64.dmg`.
 2. Drag **Quota Window** into **Applications**.
 3. Open **Quota Window** from Applications.
 
@@ -52,14 +53,14 @@ open "/Applications/Quota Window.app"
 You can also run the unpacked app directly:
 
 ```bash
-open "releases/v0.1.1/mac-arm64/Quota Window.app"
+open "releases/v0.1.2/mac-arm64/Quota Window.app"
 ```
 
-For the ZIP release, extract `Quota Window-0.1.1-arm64-mac.zip`, then open `Quota Window.app`.
+For the ZIP release, extract `Quota Window-0.1.2-arm64-mac.zip`, then open `Quota Window.app`.
 
 ### Windows
 
-After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.1.1/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
+After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.1.2/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
 
 ## Build installers
 
@@ -70,7 +71,7 @@ npm run dist:mac  # macOS .dmg and .zip
 npm run dist:win  # Windows installer and portable .exe
 ```
 
-The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.1` is written to `releases/v0.1.1/`. Bumping the package version automatically creates a new release directory on the next build.
+The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.2` is written to `releases/v0.1.2/`. Bumping the package version automatically creates a new release directory on the next build.
 The shared `releases/README.md` contains user-facing installation and first-use steps, ready to attach alongside the installer files on GitHub Releases.
 
 Run the script directly when needed:

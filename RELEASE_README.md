@@ -33,6 +33,7 @@ The macOS build requires Apple Silicon (M1 or newer).
 - Install and sign in to the [Codex CLI](https://developers.openai.com/codex/cli/) with `codex login`.
 - Open Quota Window, then press **Refresh now**. The app checks both local accounts every 3 minutes after that.
 - Click the **Q** in the macOS menu bar or Windows system tray for the compact popup. Right-click it for settings and quit.
+- In the tray menu, **Auto Ping Fable** can keep the Claude 5-hour window active every 30 minutes, 1 hour, or 2 hours. Each ping uses a small amount of Claude quota.
 
 Quota Window only reads the credentials and usage data already managed by the official CLIs. It does not upload or store your account credentials.
 

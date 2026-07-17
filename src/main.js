@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, screen, Menu, Tray, nativeImage, nativeTheme, Notification } = require("electron");
 const { execFile, spawn } = require("child_process");
 const { promisify } = require("util");
-const { existsSync, readFileSync, readdirSync, statSync } = require("fs");
+const { existsSync, readFileSync, readdirSync, statSync, writeFileSync } = require("fs");
 const { homedir } = require("os");
 const { delimiter, join } = require("path");
 const { singleFlight } = require("./single-flight");
@@ -26,6 +26,8 @@ let startOnLoginPreference = false;
 let updateState = { status: "idle", currentVersion: null, latestVersion: null, releaseUrl: RELEASES_PAGE_URL };
 const quotaAlertState = new Map();
 let claudeRetryAt = 0;
+let autoPingIntervalMinutes = 0;
+let autoPingTimer = null;
 
 function resolveCli(name) {
   const executableNames = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
@@ -314,6 +316,34 @@ function setStartOnLogin(enabled) {
   return startOnLoginPreference;
 }
 
+function autoPingSettingsPath() {
+  return join(app.getPath("userData"), "quota-window-settings.json");
+}
+
+function loadAutoPingInterval() {
+  try {
+    const { autoPingIntervalMinutes: savedInterval } = JSON.parse(readFileSync(autoPingSettingsPath(), "utf8"));
+    return [0, 30, 60, 120].includes(savedInterval) ? savedInterval : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setAutoPingInterval(minutes) {
+  autoPingIntervalMinutes = [0, 30, 60, 120].includes(minutes) ? minutes : 0;
+  if (autoPingTimer) clearInterval(autoPingTimer);
+  autoPingTimer = autoPingIntervalMinutes
+    ? setInterval(() => pingClaude().catch(() => {}), autoPingIntervalMinutes * 60 * 1000)
+    : null;
+  try {
+    writeFileSync(autoPingSettingsPath(), JSON.stringify({ autoPingIntervalMinutes }, null, 2));
+  } catch {
+    // The preference is optional; automatic pinging still works for this app session.
+  }
+  updateTrayMenu();
+  return autoPingIntervalMinutes;
+}
+
 function updateTrayMenu() {
   if (!tray) return;
   const statusItems = latestQuotas.length
@@ -325,6 +355,15 @@ function updateTrayMenu() {
     { label: mainWindow?.isVisible() ? "Hide dashboard" : "Open dashboard", click: () => mainWindow?.isVisible() ? mainWindow.hide() : showMainWindow() },
     { label: "Refresh quota", click: () => refreshAndBroadcast(true) },
     { label: "Ping Claude/Fable (start 5-hour window)", click: () => pingClaude().catch(() => {}) },
+    {
+      label: "Auto Ping Fable",
+      submenu: [
+        { label: "Off", type: "radio", checked: autoPingIntervalMinutes === 0, click: () => setAutoPingInterval(0) },
+        { label: "Every 30 minutes", type: "radio", checked: autoPingIntervalMinutes === 30, click: () => setAutoPingInterval(30) },
+        { label: "Every 1 hour", type: "radio", checked: autoPingIntervalMinutes === 60, click: () => setAutoPingInterval(60) },
+        { label: "Every 2 hours", type: "radio", checked: autoPingIntervalMinutes === 120, click: () => setAutoPingInterval(120) },
+      ],
+    },
     { label: "Always on top", type: "checkbox", checked: alwaysOnTopPreference, click: (item) => setAlwaysOnTop(item.checked) },
     { label: "Start on login", type: "checkbox", checked: startOnLoginPreference, click: (item) => setStartOnLogin(item.checked) },
     {
@@ -765,6 +804,7 @@ ipcMain.handle("app:setAlwaysOnTop", (event, enabled) => {
   return setAlwaysOnTop(enabled);
 });
 ipcMain.handle("app:setTheme", (_, theme) => setTheme(theme));
+ipcMain.handle("app:getVersion", () => app.getVersion());
 ipcMain.handle("app:getStartOnLogin", () => app.getLoginItemSettings().openAtLogin);
 ipcMain.handle("app:setStartOnLogin", (_, enabled) => setStartOnLogin(enabled));
 ipcMain.handle("app:checkForUpdates", checkForUpdates);
@@ -778,6 +818,7 @@ app.whenReady().then(() => {
   startOnLoginPreference = loginSettings.openAtLogin;
   createWindow(!loginSettings.wasOpenedAtLogin);
   createTray();
+  setAutoPingInterval(loadAutoPingInterval());
   nativeTheme.on("updated", () => {
     if (themePreference === "system") sendToWindows("app:themeChanged", currentThemeState());
   });
