@@ -1,7 +1,7 @@
 {
   "name": "quota-window",
-  "version": "0.1.2",
-  "description": "A local desktop dashboard for Claude Code and Codex subscription quota windows.",
+  "version": "0.2.0",
+  "description": "A local desktop dashboard for Claude Code, Codex, Kimi Code, Cursor, Gemini, Antigravity, and GitHub Copilot subscription quota windows.",
   "author": "Quota Window Contributors",
   "main": "src/main.js",
   "license": "MIT",

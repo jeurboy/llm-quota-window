@@ -18,11 +18,42 @@ function compactTokens(tokens) {
 }
 
 function resetText(resetsAt) {
-  if (!resetsAt) return "Reset unavailable";
+  if (!resetsAt) return "no reset info";
   const minutes = Math.max(0, Math.floor((new Date(resetsAt).getTime() - Date.now()) / 60_000));
-  if (minutes >= 1_440) return `Resets in ${Math.floor(minutes / 1_440)}d ${Math.floor((minutes % 1_440) / 60)}h`;
-  if (minutes >= 60) return `Resets in ${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return `Resets in ${minutes}m`;
+  if (minutes >= 1_440) return `${Math.floor(minutes / 1_440)}d ${Math.floor((minutes % 1_440) / 60)}h`;
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
+// How much quota should remain under an hourly-stepped time budget: every
+// window grants each hour's share up front (a weekly window budgets 100/168
+// per hour, a 5-hour window 100/5). Null when the window has no usable
+// duration or reset time. Doubles as the green/red divider position.
+function paceRemainingPercent(window) {
+  const totalMs = Number(window.durationMinutes) * 60_000;
+  const remainingMs = window.resetsAt ? new Date(window.resetsAt).getTime() - Date.now() : 0;
+  if (!totalMs || remainingMs <= 0 || remainingMs >= totalMs) return null;
+  const unitMs = 3_600_000;
+  const budgetMs = Math.min(totalMs, Math.ceil((totalMs - remainingMs) / unitMs) * unitMs);
+  return Math.max(0, Math.min(100, 100 * (1 - budgetMs / totalMs)));
+}
+
+// Colour each window by consumption pace: using quota slower than the
+// elapsed-time share stays green; running ahead of pace turns amber, then red,
+// and anything nearly exhausted is always red.
+function paceLevel(remaining, paceRemaining) {
+  if (remaining <= 10) return "critical";
+  if (paceRemaining === null) return remaining <= 30 ? "warning" : "healthy";
+  const overBudget = paceRemaining - remaining;
+  if (overBudget <= 0) return "healthy";
+  return overBudget <= 15 ? "warning" : "critical";
+}
+
+function fitPopup() {
+  requestAnimationFrame(() => {
+    const panel = document.querySelector(".panel");
+    if (panel) window.quotaWindow.fitPopup(panel.getBoundingClientRect().height);
+  });
 }
 
 function renderProviders(providers) {
@@ -30,15 +61,19 @@ function renderProviders(providers) {
   updatedAt.textContent = updateTime
     ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(updateTime))}`
     : "Usage unavailable";
-  providersElement.innerHTML = providers.map((provider) => {
+  providersElement.innerHTML = providers.length ? providers.map((provider) => {
     if (!provider.connected) return `<article class="provider error"><div class="provider-title"><strong>${provider.label}</strong><span>${provider.retrying ? "Retrying" : "Action needed"}</span></div><p>${provider.error || "Not connected"}</p></article>`;
     const windows = provider.windows.map((window) => {
-      const used = Math.max(0, Math.min(100, Math.round(window.usedPercent)));
-      return `<div class="limit"><div class="limit-copy"><strong>${window.name}</strong><span>${100 - used}% left · ${resetText(window.resetsAt)}</span></div><div class="bar"><i style="width:${100 - used}%"></i></div></div>`;
+      const remaining = Math.max(0, Math.min(100, 100 - Math.round(window.usedPercent)));
+      const paceRemaining = paceRemainingPercent(window);
+      const level = paceLevel(remaining, paceRemaining);
+      const paceLine = paceRemaining === null ? "" : `<span class="pace-line" style="left:${paceRemaining}%"></span>`;
+      return `<div class="limit"><div class="limit-copy"><strong>${window.name}</strong><span><b class="${level}">${remaining}% left</b> · <b class="${level}">${resetText(window.resetsAt)}</b></span></div><div class="bar"><i class="${level}" style="width:${remaining}%"></i>${paceLine}</div></div>`;
     }).join("");
     const todayTokens = provider.tokenUsage ? `<span class="tokens">${provider.tokenUsage.dayLabel || "today"} ${compactTokens(provider.tokenUsage.dayTokens)} tokens</span>` : "";
     return `<article class="provider"><div class="provider-title"><strong>${provider.label}</strong>${todayTokens}</div>${windows}</article>`;
-  }).join("");
+  }).join("") : "<article class=\"provider error\"><p>No provider accounts were found on this device.</p></article>";
+  fitPopup();
 }
 
 function renderTheme(themeState) {
@@ -73,8 +108,14 @@ refreshButton.addEventListener("click", () => refresh(true));
 pingButton.addEventListener("click", async () => {
   pingButton.disabled = true;
   pingButton.textContent = "Pinging…";
-  try { const result = await window.quotaWindow.pingClaude(); if (result.providers) renderProviders(result.providers); }
-  finally { pingButton.disabled = false; pingButton.textContent = "Ping Fable"; }
+  try {
+    const result = await window.quotaWindow.pingAll();
+    if (result.providers) renderProviders(result.providers);
+    const failed = (result.results || []).filter((entry) => !entry.ok);
+    if (failed.length) updatedAt.textContent = `Ping failed for ${failed.map((entry) => entry.label).join(", ")}`;
+  } catch (error) {
+    updatedAt.textContent = error.message || "Ping failed";
+  } finally { pingButton.disabled = false; pingButton.textContent = "Ping All"; }
 });
 updateButton.addEventListener("click", async () => {
   if (updateState.status === "available") await window.quotaWindow.openRelease();

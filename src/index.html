@@ -12,12 +12,13 @@
         <div>
           <p class="eyebrow">LOCAL QUOTA MONITOR</p>
           <h1>Quota Window <span id="app-version" class="app-version"></span></h1>
-          <p class="subtitle">Claude Code and Codex usage — live windows, reset times, no cloud sync.</p>
+          <p class="subtitle">Claude Code, Codex, Kimi, Cursor, Gemini, Antigravity, and Copilot usage — live windows, reset times, no cloud sync.</p>
         </div>
         <div class="window-actions">
           <button id="theme-button" class="window-button" type="button" aria-label="Toggle color theme" title="Switch to light theme">Light</button>
           <button id="pin-button" class="window-button" type="button" aria-pressed="false" title="Keep window on top">Pin</button>
           <button id="minimize-button" class="window-button minimize-button" type="button" aria-label="Minimize window" title="Minimize window">−</button>
+          <button id="ping-all-button" class="refresh-button" type="button" title="Ping every connected provider to start or refresh its usage window">Ping All</button>
           <button id="refresh-button" class="refresh-button" type="button">Refresh</button>
         </div>
       </header>
@@ -52,7 +53,6 @@
         <div class="card-actions">
           <span class="credits"></span>
           <div class="action-buttons">
-            <button class="ping-button" type="button" hidden>Ping Fable</button>
             <button class="usage-link" type="button">Usage page ↗</button>
           </div>
         </div>

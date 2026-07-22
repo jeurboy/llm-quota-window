@@ -1,6 +1,7 @@
 const cards = document.querySelector("#cards");
 const template = document.querySelector("#card-template");
 const refreshButton = document.querySelector("#refresh-button");
+const pingAllButton = document.querySelector("#ping-all-button");
 const pinButton = document.querySelector("#pin-button");
 const themeButton = document.querySelector("#theme-button");
 const minimizeButton = document.querySelector("#minimize-button");
@@ -89,19 +90,45 @@ function tokenMarkup(tokenUsage) {
     </div>`;
 }
 
+// How much quota should remain under an hourly-stepped time budget: every
+// window grants each hour's share up front (a weekly window budgets 100/168
+// per hour, a 5-hour window 100/5). Null when the window has no usable
+// duration or reset time. Doubles as the green/red divider position.
+function paceRemainingPercent(window) {
+  const totalMs = Number(window.durationMinutes) * 60_000;
+  const remainingMs = window.resetsAt ? new Date(window.resetsAt).getTime() - Date.now() : 0;
+  if (!totalMs || remainingMs <= 0 || remainingMs >= totalMs) return null;
+  const unitMs = 3_600_000;
+  const budgetMs = Math.min(totalMs, Math.ceil((totalMs - remainingMs) / unitMs) * unitMs);
+  return Math.max(0, Math.min(100, 100 * (1 - budgetMs / totalMs)));
+}
+
+// Colour each window by consumption pace: using quota slower than the
+// elapsed-time share stays green; running ahead of pace turns amber, then red,
+// and anything nearly exhausted is always red.
+function paceLevel(remaining, paceRemaining) {
+  if (remaining <= 10) return "critical";
+  if (paceRemaining === null) return remaining <= 30 ? "warning" : "healthy";
+  const overBudget = paceRemaining - remaining;
+  if (overBudget <= 0) return "healthy";
+  return overBudget <= 15 ? "warning" : "critical";
+}
+
 function windowMarkup(window) {
   const used = Math.round(window.usedPercent);
   const remaining = Math.round(remainingPercent(window));
-  const status = remaining <= 10 ? "critical" : remaining <= 30 ? "warning" : "healthy";
+  const paceRemaining = paceRemainingPercent(window);
+  const status = paceLevel(remaining, paceRemaining);
+  const ringStyle = `--remaining:${remaining}${paceRemaining === null ? "" : `; --pace:${paceRemaining}`}`;
   return `
     <section class="quota-window ${status}">
-      <div class="ring" style="--remaining:${remaining}">
+      <div class="ring${paceRemaining === null ? "" : " has-pace"}" style="${ringStyle}">
         <div class="ring-content"><strong>${remaining}%</strong><span>left</span></div>
       </div>
       <div class="window-copy">
         <h2>${window.name}</h2>
         <p>${used}% used${window.durationMinutes ? ` · ${window.durationMinutes >= 1440 ? `${Math.round(window.durationMinutes / 1440)}-day` : `${window.durationMinutes / 60}-hour`} window` : ""}</p>
-        <p class="reset" data-reset="${window.resetsAt || ""}">${resetLabel(window.resetsAt)}</p>
+        <p class="reset ${status}" data-reset="${window.resetsAt || ""}">${resetLabel(window.resetsAt)}</p>
       </div>
     </section>`;
 }
@@ -111,10 +138,12 @@ function render(providers) {
   cards.replaceChildren();
   const connectedCount = providers.filter((provider) => provider.connected).length;
   const retryingCount = providers.filter((provider) => provider.retrying).length;
-  summaryText.textContent = retryingCount
-    ? `${retryingCount} account is rate limited and will retry automatically.`
-    : connectedCount === 2 ? "Both local accounts are connected." : `${connectedCount} of 2 local accounts connected.`;
-  connectionDot.classList.toggle("offline", connectedCount !== 2);
+  summaryText.textContent = !providers.length
+    ? "No provider accounts were found on this device."
+    : retryingCount
+      ? `${retryingCount} account is rate limited and will retry automatically.`
+      : connectedCount === providers.length ? "All local accounts are connected." : `${connectedCount} of ${providers.length} local accounts connected.`;
+  connectionDot.classList.toggle("offline", !providers.length || connectedCount !== providers.length);
   const updateTime = providers.map((provider) => provider.updatedAt).filter(Boolean).sort().at(-1);
   lastUpdated.textContent = updateTime ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date(updateTime))}` : "";
 
@@ -134,25 +163,6 @@ function render(providers) {
     if (provider.tokenUsage) { tokenUsage.hidden = false; tokenUsage.innerHTML = tokenMarkup(provider.tokenUsage); }
     const credits = card.querySelector(".credits");
     credits.textContent = provider.provider === "codex" && provider.credits ? `${provider.credits} reset credits available` : "";
-    const pingButton = card.querySelector(".ping-button");
-    if (provider.provider === "claude") {
-      pingButton.hidden = false;
-      pingButton.addEventListener("click", async () => {
-        if (!window.confirm("Ping Fable to start or update Claude's 5-hour window? This sends a minimal request and uses a small amount of quota.")) return;
-        pingButton.disabled = true;
-        pingButton.textContent = "Pinging…";
-        try {
-          const result = await window.quotaWindow.pingClaude();
-          if (result.providers) render(result.providers);
-        } catch (error) {
-          summaryText.textContent = error.message || "Claude ping failed.";
-          connectionDot.classList.add("offline");
-        } finally {
-          pingButton.disabled = false;
-          pingButton.textContent = "Ping Fable";
-        }
-      });
-    }
     card.querySelector(".usage-link").addEventListener("click", () => window.quotaWindow.openUsage(provider.provider));
     cards.append(card);
   }
@@ -177,6 +187,26 @@ function updateCountdowns() {
 }
 
 refreshButton.addEventListener("click", () => refresh(true));
+pingAllButton.addEventListener("click", async () => {
+  if (!window.confirm("Ping every connected provider to start or update its usage window? This sends one minimal request per provider and uses a small amount of quota.")) return;
+  pingAllButton.disabled = true;
+  pingAllButton.textContent = "Pinging…";
+  try {
+    const result = await window.quotaWindow.pingAll();
+    if (result.providers) render(result.providers);
+    const failed = (result.results || []).filter((entry) => !entry.ok);
+    if (failed.length) {
+      summaryText.textContent = `Ping failed for ${failed.map((entry) => entry.label).join(", ")}. Other providers were pinged.`;
+      connectionDot.classList.add("offline");
+    }
+  } catch (error) {
+    summaryText.textContent = error.message || "Ping failed.";
+    connectionDot.classList.add("offline");
+  } finally {
+    pingAllButton.disabled = false;
+    pingAllButton.textContent = "Ping All";
+  }
+});
 minimizeButton.addEventListener("click", () => window.quotaWindow.minimize());
 pinButton.addEventListener("click", async () => {
   const enabled = await window.quotaWindow.setAlwaysOnTop(!alwaysOnTop);

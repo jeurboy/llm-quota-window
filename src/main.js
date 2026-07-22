@@ -1,18 +1,62 @@
 const { app, BrowserWindow, ipcMain, shell, screen, Menu, Tray, nativeImage, nativeTheme, Notification } = require("electron");
 const { execFile, spawn } = require("child_process");
 const { promisify } = require("util");
-const { existsSync, readFileSync, readdirSync, statSync, writeFileSync } = require("fs");
-const { homedir } = require("os");
+const { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } = require("fs");
 const { delimiter, join } = require("path");
 const { singleFlight } = require("./single-flight");
 const { selectCodexDailyUsageBucket } = require("./codex-usage");
+const { parseKimiUsagePayload } = require("./kimi-usage");
+const { extractCursorSession, parseCursorUsageSummary } = require("./cursor-usage");
+const { parseGoogleQuotaBuckets, parseAntigravityModels, googlePlanLabel, googleProjectId } = require("./google-usage");
+const { extractCopilotToken, parseCopilotUsage } = require("./copilot-usage");
+const {
+  REQUEST_TIMEOUT_MS,
+  QUOTA_CACHE_MS,
+  AUTO_REFRESH_INTERVAL_MS,
+  UPDATE_CHECK_INTERVAL_MS,
+  PING_TIMEOUT_MS,
+  PING_SETTLE_DELAY_MS,
+  PING_PROMPT,
+  AUTO_PING_INTERVALS_MINUTES,
+  RELEASES_API_URL,
+  RELEASES_PAGE_URL,
+  GITHUB_API_VERSION,
+  SETTINGS_FILE_NAME,
+  cliKnownDirectories,
+  CLAUDE_API_VERSION,
+  CLAUDE_USAGE_URL,
+  CLAUDE_USAGE_PAGE_URL,
+  CLAUDE_PING_MODEL,
+  CLAUDE_PROJECTS_ROOT,
+  claudeCredentialPaths,
+  CODEX_USAGE_PAGE_URL,
+  KIMI_CLIENT_ID,
+  KIMI_TOKEN_URL,
+  KIMI_USAGE_URL,
+  KIMI_USAGE_PAGE_URL,
+  kimiCredentialsPath,
+  CURSOR_USAGE_SUMMARY_URL,
+  CURSOR_USAGE_PAGE_URL,
+  cursorStateDbPath,
+  GEMINI_OAUTH_CLIENT_ID,
+  GEMINI_OAUTH_CLIENT_SECRET,
+  GOOGLE_TOKEN_URL,
+  CLOUD_CODE_LOAD_URL,
+  CLOUD_CODE_QUOTA_URL,
+  CLOUD_CODE_MODELS_URL,
+  GEMINI_USAGE_PAGE_URL,
+  ANTIGRAVITY_USAGE_PAGE_URL,
+  geminiCredentialsPath,
+  COPILOT_USAGE_URL,
+  COPILOT_USAGE_PAGE_URL,
+  COPILOT_API_VERSION,
+  COPILOT_EDITOR_VERSION,
+  COPILOT_PLUGIN_VERSION,
+  COPILOT_USER_AGENT,
+  copilotConfigDirectories,
+} = require("./config");
 
 const execFileAsync = promisify(execFile);
-const REQUEST_TIMEOUT_MS = 15_000;
-const QUOTA_CACHE_MS = 3 * 60 * 1000;
-const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const RELEASES_API_URL = "https://api.github.com/repos/jeurboy/llm-quota-window/releases/latest";
-const RELEASES_PAGE_URL = "https://github.com/jeurboy/llm-quota-window/releases";
 let mainWindow = null;
 let popupWindow = null;
 let tray = null;
@@ -32,13 +76,7 @@ let autoPingTimer = null;
 function resolveCli(name) {
   const executableNames = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
   const pathDirectories = (process.env.PATH || "").split(delimiter).filter(Boolean);
-  const knownDirectories = [
-    join(homedir(), ".local", "bin"),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    process.env.APPDATA && join(process.env.APPDATA, "npm"),
-  ].filter(Boolean);
-  for (const directory of [...new Set([...pathDirectories, ...knownDirectories])]) {
+  for (const directory of [...new Set([...pathDirectories, ...cliKnownDirectories()])]) {
     for (const executableName of executableNames) {
       const candidate = join(directory, executableName);
       if (existsSync(candidate)) return candidate;
@@ -60,10 +98,10 @@ function quoteForWindowsShell(value) {
   return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
-function runCli(command, args) {
+function runCli(command, args, { timeout: timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const executable = resolveCli(command);
   const options = {
-    timeout: REQUEST_TIMEOUT_MS,
+    timeout: timeoutMs,
     windowsHide: true,
     maxBuffer: 1_000_000,
   };
@@ -84,7 +122,7 @@ function runCli(command, args) {
       const error = new Error(`${command} timed out.`);
       error.stderr = stderr;
       reject(error);
-    }, REQUEST_TIMEOUT_MS);
+    }, timeoutMs);
 
     processHandle.stdout.on("data", (chunk) => { stdout += chunk; });
     processHandle.stderr.on("data", (chunk) => { stderr += chunk; });
@@ -317,23 +355,23 @@ function setStartOnLogin(enabled) {
 }
 
 function autoPingSettingsPath() {
-  return join(app.getPath("userData"), "quota-window-settings.json");
+  return join(app.getPath("userData"), SETTINGS_FILE_NAME);
 }
 
 function loadAutoPingInterval() {
   try {
     const { autoPingIntervalMinutes: savedInterval } = JSON.parse(readFileSync(autoPingSettingsPath(), "utf8"));
-    return [0, 30, 60, 120].includes(savedInterval) ? savedInterval : 0;
+    return AUTO_PING_INTERVALS_MINUTES.includes(savedInterval) ? savedInterval : 0;
   } catch {
     return 0;
   }
 }
 
 function setAutoPingInterval(minutes) {
-  autoPingIntervalMinutes = [0, 30, 60, 120].includes(minutes) ? minutes : 0;
+  autoPingIntervalMinutes = AUTO_PING_INTERVALS_MINUTES.includes(minutes) ? minutes : 0;
   if (autoPingTimer) clearInterval(autoPingTimer);
   autoPingTimer = autoPingIntervalMinutes
-    ? setInterval(() => pingClaude().catch(() => {}), autoPingIntervalMinutes * 60 * 1000)
+    ? setInterval(() => pingAllProviders().catch(() => {}), autoPingIntervalMinutes * 60 * 1000)
     : null;
   try {
     writeFileSync(autoPingSettingsPath(), JSON.stringify({ autoPingIntervalMinutes }, null, 2));
@@ -348,15 +386,15 @@ function updateTrayMenu() {
   if (!tray) return;
   const statusItems = latestQuotas.length
     ? latestQuotas.map((provider) => ({ label: quotaMenuLabel(provider), enabled: false }))
-    : [{ label: "Quota not checked yet", enabled: false }];
+    : [{ label: lastQuotaRefreshAt ? "No provider accounts found on this device" : "Quota not checked yet", enabled: false }];
   trayMenu = Menu.buildFromTemplate([
     ...statusItems,
     { type: "separator" },
     { label: mainWindow?.isVisible() ? "Hide dashboard" : "Open dashboard", click: () => mainWindow?.isVisible() ? mainWindow.hide() : showMainWindow() },
     { label: "Refresh quota", click: () => refreshAndBroadcast(true) },
-    { label: "Ping Claude/Fable (start 5-hour window)", click: () => pingClaude().catch(() => {}) },
+    { label: "Ping all connected providers (start usage windows)", click: () => pingAllProviders().catch(() => {}) },
     {
-      label: "Auto Ping Fable",
+      label: "Auto Ping All Providers",
       submenu: [
         { label: "Off", type: "radio", checked: autoPingIntervalMinutes === 0, click: () => setAutoPingInterval(0) },
         { label: "Every 30 minutes", type: "radio", checked: autoPingIntervalMinutes === 30, click: () => setAutoPingInterval(30) },
@@ -419,7 +457,7 @@ async function checkForUpdates() {
       headers: {
         Accept: "application/vnd.github+json",
         "User-Agent": `Quota-Window/${app.getVersion()}`,
-        "X-GitHub-Api-Version": "2022-11-28",
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -457,6 +495,20 @@ function createTray() {
   tray.on("click", togglePopup);
   tray.on("right-click", () => tray.popUpContextMenu(trayMenu));
   updateTrayMenu();
+}
+
+// resolveCli returns the bare name only when the executable exists nowhere on
+// PATH or in the known install directories.
+function cliInstalled(name) {
+  return resolveCli(name) !== name;
+}
+
+// Providers that are absent from this device entirely are hidden from every
+// surface instead of shown as "action needed".
+function notDetectedError(message) {
+  const error = new Error(message);
+  error.notDetected = true;
+  return error;
 }
 
 function commandError(command, error) {
@@ -555,6 +607,7 @@ function localDateKey(date = new Date()) {
 }
 
 async function getCodexQuota() {
+  if (!cliInstalled("codex")) throw notDetectedError("Codex CLI is not installed on this device.");
   const [result, tokenUsage] = await Promise.all([
     callCodex("account/rateLimits/read"),
     callCodex("account/usage/read"),
@@ -594,7 +647,7 @@ function startOfLocalDay() {
 }
 
 function claudeLocalTokenUsage() {
-  const root = join(homedir(), ".claude", "projects");
+  const root = CLAUDE_PROJECTS_ROOT;
   if (!existsSync(root)) return null;
   const seenRequests = new Set();
   let tokens = 0;
@@ -646,12 +699,7 @@ function getClaudeCredentials() {
     }
   }
 
-  const candidates = [
-    join(homedir(), ".claude", ".credentials.json"),
-    join(homedir(), ".claude", "credentials.json"),
-    process.env.APPDATA && join(process.env.APPDATA, "Claude", "credentials.json"),
-  ].filter(Boolean);
-  for (const path of candidates) {
+  for (const path of claudeCredentialPaths()) {
     try {
       if (existsSync(path)) {
         const parsed = JSON.parse(readFileSync(path, "utf8"));
@@ -676,6 +724,7 @@ function toClaudeWindow(item, fallbackName) {
 }
 
 async function getClaudeQuota() {
+  if (!cliInstalled("claude")) throw notDetectedError("Claude Code CLI is not installed on this device.");
   if (Date.now() < claudeRetryAt) {
     const remainingSeconds = Math.ceil((claudeRetryAt - Date.now()) / 1_000);
     throw new Error(`Claude usage is temporarily rate limited. Retrying automatically in ${remainingSeconds}s.`);
@@ -687,8 +736,8 @@ async function getClaudeQuota() {
   if (!credentials?.accessToken) {
     throw new Error("Could not read Claude Code's local sign-in. Run `claude auth login` and refresh.");
   }
-  const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
-    headers: { Authorization: `Bearer ${credentials.accessToken}`, "anthropic-version": "2023-06-01" },
+  const response = await fetch(CLAUDE_USAGE_URL, {
+    headers: { Authorization: `Bearer ${credentials.accessToken}`, "anthropic-version": CLAUDE_API_VERSION },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
@@ -727,20 +776,318 @@ async function getClaudeQuota() {
   };
 }
 
+function readKimiCredentials() {
+  try {
+    const credentials = JSON.parse(readFileSync(kimiCredentialsPath(), "utf8"));
+    if (credentials?.access_token) return credentials;
+  } catch {
+    // Missing or unreadable credentials are reported as signed out below.
+  }
+  return null;
+}
+
+const KIMI_SIGN_IN_MESSAGE = "Kimi Code is signed out. Run `/login` in the Kimi Code CLI and refresh.";
+
+async function refreshKimiCredentials(credentials) {
+  if (!KIMI_CLIENT_ID) {
+    throw new Error("Kimi token expired. Use the Kimi Code CLI once to refresh it (or set KIMI_CLIENT_ID).");
+  }
+  if (!credentials.refresh_token) throw new Error(KIMI_SIGN_IN_MESSAGE);
+  const response = await fetch(KIMI_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      client_id: KIMI_CLIENT_ID,
+      grant_type: "refresh_token",
+      refresh_token: credentials.refresh_token,
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      response.status === 401 || response.status === 403 || data.error === "invalid_grant"
+        ? KIMI_SIGN_IN_MESSAGE
+        : `Kimi token refresh failed (${response.status}).`,
+    );
+  }
+  const expiresIn = Number(data.expires_in ?? credentials.expires_in ?? 900);
+  const refreshed = {
+    ...credentials,
+    access_token: data.access_token,
+    refresh_token: data.refresh_token || credentials.refresh_token,
+    expires_in: expiresIn,
+    expires_at: Math.floor(Date.now() / 1_000) + expiresIn,
+  };
+  try {
+    const path = kimiCredentialsPath();
+    const temporaryPath = `${path}.tmp`;
+    writeFileSync(temporaryPath, JSON.stringify(refreshed, null, 2), { mode: 0o600 });
+    renameSync(temporaryPath, path);
+  } catch {
+    // The refreshed token still works for this session even if it cannot be persisted.
+  }
+  return refreshed;
+}
+
+async function getKimiCredentials() {
+  const credentials = readKimiCredentials();
+  if (!credentials) throw new Error(KIMI_SIGN_IN_MESSAGE);
+  if (Number(credentials.expires_at || 0) - 60 > Date.now() / 1_000) return credentials;
+  return refreshKimiCredentials(credentials);
+}
+
+async function getKimiQuota() {
+  if (!readKimiCredentials() && !cliInstalled("kimi")) {
+    throw notDetectedError("Kimi Code is not installed on this device.");
+  }
+  const credentials = await getKimiCredentials();
+  const response = await fetch(KIMI_USAGE_URL, {
+    headers: { Authorization: `Bearer ${credentials.access_token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(response.status === 401 ? KIMI_SIGN_IN_MESSAGE : `Kimi usage request failed (${response.status}).`);
+  }
+  const { plan, windows } = parseKimiUsagePayload(await response.json());
+  return {
+    provider: "kimi",
+    label: "Kimi",
+    connected: true,
+    plan,
+    windows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+const CURSOR_SIGN_IN_MESSAGE = "Cursor is not signed in on this device. Open Cursor, sign in, and refresh.";
+
+function getCursorSession() {
+  const path = cursorStateDbPath();
+  if (!path || !existsSync(path)) return null;
+  const buffers = [];
+  try {
+    buffers.push(readFileSync(path));
+    // A running Cursor may hold the freshest token in the WAL, not the main file.
+    if (existsSync(`${path}-wal`)) buffers.push(readFileSync(`${path}-wal`));
+  } catch {
+    // An unreadable store is reported as signed out below.
+  }
+  return extractCursorSession(buffers);
+}
+
+async function getCursorQuota() {
+  const session = getCursorSession();
+  if (!session) throw notDetectedError(CURSOR_SIGN_IN_MESSAGE);
+  const response = await fetch(CURSOR_USAGE_SUMMARY_URL, {
+    headers: {
+      Accept: "application/json",
+      Cookie: `WorkosCursorSessionToken=${session.userId}%3A%3A${session.accessToken}`,
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(response.status === 401 || response.status === 403
+      ? "Cursor sign-in expired. Sign in inside Cursor and refresh."
+      : `Cursor usage request failed (${response.status}).`);
+  }
+  const { plan, windows } = parseCursorUsageSummary(await response.json());
+  return {
+    provider: "cursor",
+    label: "Cursor",
+    connected: true,
+    plan,
+    windows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// --- Google (Gemini CLI & Antigravity) ---
+
+const GOOGLE_SIGN_IN_MESSAGE = "Google sign-in expired. Sign in with the Gemini CLI or Antigravity and refresh.";
+
+function readGoogleCredentials() {
+  try {
+    const credentials = JSON.parse(readFileSync(geminiCredentialsPath(), "utf8"));
+    if (credentials?.access_token) return credentials;
+  } catch {
+    // Missing or unreadable credentials are reported as not detected below.
+  }
+  return null;
+}
+
+async function refreshGoogleCredentials(credentials) {
+  if (!GEMINI_OAUTH_CLIENT_ID || !GEMINI_OAUTH_CLIENT_SECRET) {
+    throw new Error("Google token expired. Use the Gemini CLI or Antigravity once to refresh it (or set GEMINI_OAUTH_CLIENT_ID and GEMINI_OAUTH_CLIENT_SECRET).");
+  }
+  if (!credentials.refresh_token) throw new Error(GOOGLE_SIGN_IN_MESSAGE);
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      client_id: GEMINI_OAUTH_CLIENT_ID,
+      client_secret: GEMINI_OAUTH_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: credentials.refresh_token,
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) throw new Error(GOOGLE_SIGN_IN_MESSAGE);
+  const refreshed = {
+    ...credentials,
+    access_token: data.access_token,
+    expiry_date: Date.now() + (Number(data.expires_in || 3_600) * 1_000),
+    ...(data.id_token ? { id_token: data.id_token } : {}),
+  };
+  try {
+    const path = geminiCredentialsPath();
+    const temporaryPath = `${path}.tmp`;
+    writeFileSync(temporaryPath, JSON.stringify(refreshed, null, 2), { mode: 0o600 });
+    renameSync(temporaryPath, path);
+  } catch {
+    // The refreshed token still works for this session even if it cannot be persisted.
+  }
+  return refreshed;
+}
+
+// singleFlight so Gemini and Antigravity loading in parallel share one refresh.
+const getGoogleAccessToken = singleFlight(async () => {
+  const credentials = readGoogleCredentials();
+  if (!credentials) throw new Error(GOOGLE_SIGN_IN_MESSAGE);
+  if (Number(credentials.expiry_date || 0) - 60_000 > Date.now()) return credentials.access_token;
+  return (await refreshGoogleCredentials(credentials)).access_token;
+});
+
+async function cloudCodePost(url, accessToken, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401) throw new Error(GOOGLE_SIGN_IN_MESSAGE);
+  if (!response.ok) {
+    const error = new Error(`Google usage request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
+async function getGeminiQuota() {
+  if (!readGoogleCredentials()) throw notDetectedError("Gemini is not signed in on this device.");
+  const accessToken = await getGoogleAccessToken();
+  const assist = await cloudCodePost(CLOUD_CODE_LOAD_URL, accessToken, {
+    metadata: { ideType: "GEMINI_CLI", pluginType: "GEMINI" },
+  }).catch(() => null);
+  const project = googleProjectId(assist);
+  const quota = await cloudCodePost(CLOUD_CODE_QUOTA_URL, accessToken, project ? { project } : {});
+  return {
+    provider: "gemini",
+    label: "Gemini",
+    connected: true,
+    plan: googlePlanLabel(assist),
+    windows: parseGoogleQuotaBuckets(quota),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getAntigravityQuota() {
+  if (!readGoogleCredentials()) throw notDetectedError("Antigravity is not signed in on this device.");
+  const accessToken = await getGoogleAccessToken();
+  const assist = await cloudCodePost(CLOUD_CODE_LOAD_URL, accessToken, {
+    metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" },
+  }).catch(() => null);
+  const project = googleProjectId(assist);
+  let models;
+  try {
+    models = await cloudCodePost(CLOUD_CODE_MODELS_URL, accessToken, project ? { project } : {});
+  } catch (error) {
+    // Accounts without Antigravity-specific model quotas draw from the shared
+    // Gemini pool already shown on the Gemini card, so hide the duplicate.
+    if (error.status === 403) throw notDetectedError("Antigravity model quotas are not available for this account.");
+    throw error;
+  }
+  const windows = parseAntigravityModels(models);
+  if (!windows.length) throw notDetectedError("Antigravity model quotas are not available for this account.");
+  return {
+    provider: "antigravity",
+    label: "Antigravity",
+    connected: true,
+    plan: googlePlanLabel(assist),
+    windows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// --- GitHub Copilot ---
+
+function readCopilotToken() {
+  for (const directory of copilotConfigDirectories()) {
+    const files = {};
+    try { files.appsJson = readFileSync(join(directory, "apps.json"), "utf8"); } catch { /* optional */ }
+    try { files.hostsJson = readFileSync(join(directory, "hosts.json"), "utf8"); } catch { /* optional */ }
+    const token = extractCopilotToken(files);
+    if (token) return token;
+  }
+  return null;
+}
+
+async function getCopilotQuota() {
+  const token = readCopilotToken();
+  if (!token) throw notDetectedError("GitHub Copilot is not signed in on this device.");
+  const response = await fetch(COPILOT_USAGE_URL, {
+    headers: {
+      Authorization: `token ${token}`,
+      Accept: "application/json",
+      "Editor-Version": COPILOT_EDITOR_VERSION,
+      "Editor-Plugin-Version": COPILOT_PLUGIN_VERSION,
+      "User-Agent": COPILOT_USER_AGENT,
+      "X-Github-Api-Version": COPILOT_API_VERSION,
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("GitHub Copilot sign-in expired. Sign in from your editor and refresh.");
+  }
+  if (!response.ok) throw new Error(`Copilot usage request failed (${response.status}).`);
+  const { plan, windows } = parseCopilotUsage(await response.json());
+  return {
+    provider: "copilot",
+    label: "Copilot",
+    connected: true,
+    plan,
+    windows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+const quotaProviders = [
+  { provider: "claude", label: "Claude", load: getClaudeQuota, ping: pingClaudeProvider },
+  { provider: "codex", label: "Codex", load: getCodexQuota, ping: pingCodexProvider },
+  { provider: "kimi", label: "Kimi", load: getKimiQuota, ping: pingKimiProvider },
+  { provider: "cursor", label: "Cursor", load: getCursorQuota },
+  { provider: "gemini", label: "Gemini", load: getGeminiQuota },
+  { provider: "antigravity", label: "Antigravity", load: getAntigravityQuota },
+  { provider: "copilot", label: "Copilot", load: getCopilotQuota },
+];
+
 async function loadQuotas() {
-  const providers = await Promise.allSettled([getClaudeQuota(), getCodexQuota()]);
+  const providers = await Promise.allSettled(quotaProviders.map((entry) => entry.load()));
   latestQuotas = providers.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
+    if (result.reason?.notDetected) return null;
     return {
-      provider: index === 0 ? "claude" : "codex",
-      label: index === 0 ? "Claude" : "Codex",
+      provider: quotaProviders[index].provider,
+      label: quotaProviders[index].label,
       connected: false,
       retrying: /temporarily rate limited/i.test(result.reason?.message || ""),
       windows: [],
       error: result.reason?.message || "Could not load this provider.",
       updatedAt: new Date().toISOString(),
     };
-  });
+  }).filter(Boolean);
   lastQuotaRefreshAt = Date.now();
   updateTrayMenu();
   return latestQuotas;
@@ -760,38 +1107,75 @@ async function refreshAndBroadcast(force = false) {
   return providers;
 }
 
-async function pingClaudeRequest() {
-  try {
-    await runCli("claude", [
-      "--safe-mode",
-      "--print",
-      "Reply only with: pong",
-      "--system-prompt",
-      "Reply only with the single word pong.",
-      "--model",
-      "fable",
-      "--tools",
-      "",
-      "--no-session-persistence",
-      "--output-format",
-      "json",
-    ], {
-      timeout: 90_000,
-      windowsHide: true,
-      maxBuffer: 1_000_000,
-    });
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
-    return { ok: true, providers: await refreshAndBroadcast(true) };
-  } catch (error) {
-    throw new Error(commandError("Claude", error));
-  }
+function pingClaudeProvider() {
+  return runCli("claude", [
+    "--safe-mode",
+    "--print",
+    PING_PROMPT,
+    "--system-prompt",
+    "Reply only with the single word pong.",
+    "--model",
+    CLAUDE_PING_MODEL,
+    "--tools",
+    "",
+    "--no-session-persistence",
+    "--output-format",
+    "json",
+  ], { timeout: PING_TIMEOUT_MS });
 }
 
-const pingClaude = singleFlight(pingClaudeRequest);
+function pingCodexProvider() {
+  return runCli("codex", [
+    "exec",
+    "--skip-git-repo-check",
+    "-s",
+    "read-only",
+    "--color",
+    "never",
+    PING_PROMPT,
+  ], { timeout: PING_TIMEOUT_MS });
+}
+
+function pingKimiProvider() {
+  return runCli("kimi", ["-p", PING_PROMPT], { timeout: PING_TIMEOUT_MS });
+}
+
+async function pingAllProvidersRequest() {
+  const quotas = await getQuotas();
+  const connected = new Set(quotas.filter((entry) => entry.connected).map((entry) => entry.provider));
+  const targets = quotaProviders.filter((entry) => entry.ping && connected.has(entry.provider));
+  if (!targets.length) throw new Error("No connected providers to ping. Sign in to a CLI and refresh.");
+
+  const outcomes = await Promise.allSettled(targets.map((entry) => entry.ping()));
+  const results = targets.map((entry, index) => ({
+    provider: entry.provider,
+    label: entry.label,
+    ok: outcomes[index].status === "fulfilled",
+    error: outcomes[index].status === "rejected" ? commandError(entry.label, outcomes[index].reason) : null,
+  }));
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length === results.length) {
+    throw new Error(failed.map((result) => `${result.label}: ${result.error}`).join(" · "));
+  }
+  await new Promise((resolve) => setTimeout(resolve, PING_SETTLE_DELAY_MS));
+  return { ok: !failed.length, results, providers: await refreshAndBroadcast(true) };
+}
+
+const pingAllProviders = singleFlight(pingAllProvidersRequest);
 
 ipcMain.handle("quota:refresh", (_, force = false) => getQuotas(Boolean(force)));
+const providerUsagePages = {
+  claude: CLAUDE_USAGE_PAGE_URL,
+  codex: CODEX_USAGE_PAGE_URL,
+  kimi: KIMI_USAGE_PAGE_URL,
+  cursor: CURSOR_USAGE_PAGE_URL,
+  gemini: GEMINI_USAGE_PAGE_URL,
+  antigravity: ANTIGRAVITY_USAGE_PAGE_URL,
+  copilot: COPILOT_USAGE_PAGE_URL,
+};
+
 ipcMain.handle("app:openUsage", (_, provider) => shell.openExternal(
-  provider === "claude" ? "https://claude.ai/settings/usage" : "https://chatgpt.com/codex/settings/usage",
+  providerUsagePages[provider] || CODEX_USAGE_PAGE_URL,
 ));
 ipcMain.on("app:minimize", (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -811,7 +1195,13 @@ ipcMain.handle("app:checkForUpdates", checkForUpdates);
 ipcMain.handle("app:openRelease", () => shell.openExternal(updateState.releaseUrl || RELEASES_PAGE_URL));
 ipcMain.handle("app:showDashboard", () => showMainWindow());
 ipcMain.handle("app:hidePopup", () => popupWindow?.hide());
-ipcMain.handle("claude:ping", pingClaude);
+ipcMain.on("popup:fitHeight", (event, height) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window !== popupWindow || window.isDestroyed()) return;
+  const target = Math.max(280, Math.min(640, Math.ceil(Number(height) || 0)));
+  if (target && Math.abs(window.getContentBounds().height - target) > 2) window.setContentSize(360, target);
+});
+ipcMain.handle("provider:pingAll", () => pingAllProviders());
 
 app.whenReady().then(() => {
   const loginSettings = app.getLoginItemSettings();
@@ -822,7 +1212,7 @@ app.whenReady().then(() => {
   nativeTheme.on("updated", () => {
     if (themePreference === "system") sendToWindows("app:themeChanged", currentThemeState());
   });
-  setInterval(() => refreshAndBroadcast(true), 3 * 60 * 1000);
+  setInterval(() => refreshAndBroadcast(true), AUTO_REFRESH_INTERVAL_MS);
   setTimeout(checkForUpdates, 2_500);
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
   app.on("activate", showMainWindow);

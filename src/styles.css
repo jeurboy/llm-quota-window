@@ -28,12 +28,13 @@ button { color: inherit; font: inherit; cursor: pointer; }
 .windows { margin-top: 8px; }
 .quota-window { display: flex; align-items: center; gap: 9px; padding: 5px 0; border-top: 1px solid #263557; }
 .quota-window:first-child { border-top: 0; padding-top: 0; }
-.ring { --remaining: 0; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%; padding: 4px; background: conic-gradient(#53d7ad calc(var(--remaining) * 1%), #29385d 0); }
+.ring { --remaining: 0; position: relative; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%; padding: 4px; background: conic-gradient(#53d7ad calc(var(--remaining) * 1%), #29385d 0); }
 .warning .ring { background: conic-gradient(#ffbe63 calc(var(--remaining) * 1%), #29385d 0); }
 .critical .ring { background: conic-gradient(#ff7381 calc(var(--remaining) * 1%), #29385d 0); }
-.ring-content { width: 100%; height: 100%; display: grid; align-content: center; justify-items: center; border-radius: 50%; background: #111a34; }
+.ring.has-pace::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from calc(var(--pace) * 3.6deg - 2deg), #eaf1ff 0 4deg, transparent 0); opacity: .9; }
+.ring-content { position: relative; width: 100%; height: 100%; display: grid; align-content: center; justify-items: center; border-radius: 50%; background: #111a34; }
 .ring strong { font-size: 11px; letter-spacing: -.04em; }.ring span { color: #96a4c7; font-size: 7px; margin-top: -1px; }
-.window-copy h2 { font-size: 11px; margin: 0 0 2px; }.window-copy p { color: #9eacca; font-size: 9px; margin: 0; }.window-copy .reset { color: #d7def1; margin-top: 3px; }
+.window-copy h2 { font-size: 11px; margin: 0 0 2px; }.window-copy p { color: #9eacca; font-size: 9px; margin: 0; }.window-copy .reset { color: #d7def1; margin-top: 3px; }.window-copy .reset.healthy { color: #53d7ad; }.window-copy .reset.warning { color: #ffbe63; }.window-copy .reset.critical { color: #ff7381; }
 .error { margin: 14px 0 0; padding: 11px; border-radius: 9px; color: #ffd1bb; background: #422c29; font-size: 12px; line-height: 1.45; }
 .token-usage { margin-top: 8px; padding: 7px 0 1px; border-top: 1px solid #263557; }.token-title { margin: 0 0 5px; color: #8ea0c6; font-size: 8px; font-weight: 750; letter-spacing: .1em; }.token-title span { color: #617197; font-weight: 500; letter-spacing: 0; margin-left: 3px; text-transform: none; }.token-grid { display: flex; gap: 11px; }.token-grid div { display: grid; gap: 1px; }.token-grid strong { font-size: 12px; letter-spacing: -.03em; }.token-grid span { color: #95a4c7; font-size: 8px; }
 .empty { color: #a6b1cf; font-size: 12px; line-height: 1.5; }.card-actions { margin-top: 4px; padding-top: 11px; min-height: 35px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #263557; }.credits { color: #9db1dc; font-size: 11px; }.action-buttons { display: flex; align-items: center; gap: 9px; margin-left: auto; }.usage-link, .ping-button { border: 0; background: transparent; color: #80c9ff; padding: 4px 0; font-size: 11px; font-weight: 620; }.usage-link:hover, .ping-button:hover:not(:disabled) { color: #c3e7ff; }.ping-button { color: #5bdfb4; }.ping-button:disabled { cursor: wait; opacity: .6; }
@@ -52,6 +53,10 @@ html[data-theme="light"] .provider-card { border-color: #c9dbea; background: lin
 html[data-theme="light"] .provider-card.is-offline { border-color: #ebc99d; }
 html[data-theme="light"] .plan, html[data-theme="light"] .window-copy p, html[data-theme="light"] .ring span, html[data-theme="light"] .credits, html[data-theme="light"] .empty { color: #6a7a94; }
 html[data-theme="light"] .window-copy .reset { color: #344866; }
+html[data-theme="light"] .window-copy .reset.healthy { color: #0d9c6e; }
+html[data-theme="light"] .window-copy .reset.warning { color: #c97e12; }
+html[data-theme="light"] .window-copy .reset.critical { color: #e14a59; }
+html[data-theme="light"] .ring.has-pace::before { background: conic-gradient(from calc(var(--pace) * 3.6deg - 2deg), #1c3350 0 4deg, transparent 0); opacity: .7; }
 html[data-theme="light"] .quota-window, html[data-theme="light"] .token-usage, html[data-theme="light"] .card-actions { border-color: #d6e4ef; }
 html[data-theme="light"] .ring { background: conic-gradient(#12aee8 calc(var(--remaining) * 1%), #d9e8f2 0); }
 html[data-theme="light"] .warning .ring { background: conic-gradient(#ed9f31 calc(var(--remaining) * 1%), #d9e8f2 0); }
