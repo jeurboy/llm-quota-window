@@ -79,6 +79,21 @@ npm run dist:mac  # macOS .dmg and .zip
 npm run dist:win  # Windows installer and portable .exe
 ```
 
+### macOS signing & notarization
+
+Unsigned downloads trigger macOS's "app is damaged" Gatekeeper dialog. Release builds should be signed and notarized:
+
+1. One-time setup (already done for this project's team):
+   - A **Developer ID Application** certificate in the login keychain (create via Xcode → Settings → Accounts → Manage Certificates → + ; requires the team's Program License Agreement to be accepted on developer.apple.com first).
+   - Notarization credentials stored as a keychain profile: `xcrun notarytool store-credentials quota-window --apple-id <apple-id> --team-id <TEAM_ID> --password <app-specific-password>` (the Team ID is the certificate's OU value, visible in `security find-identity -v -p codesigning`).
+2. Build a signed + notarized release:
+
+```bash
+CSC_IDENTITY_AUTO_DISCOVERY=true APPLE_KEYCHAIN_PROFILE=quota-window npm run dist:mac
+```
+
+`scripts/build-release.mjs` defaults `CSC_IDENTITY_AUTO_DISCOVERY` to `false` so contributors without certificates can still build unsigned artifacts; setting it to `true` enables signing, and `APPLE_KEYCHAIN_PROFILE` lets electron-builder submit the build to Apple's notary service (usually 2–15 minutes). `package.json` already configures the hardened runtime, Electron entitlements (`assets/entitlements.mac.plist`), and `notarize: true`.
+
 The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.2` is written to `releases/v0.1.2/`. Bumping the package version automatically creates a new release directory on the next build.
 The shared `releases/README.md` contains user-facing installation and first-use steps, ready to attach alongside the installer files on GitHub Releases.
 
