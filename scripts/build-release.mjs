@@ -3,6 +3,18 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 
 const projectRoot = process.cwd();
+
+// Load signing credentials from a local .env file (gitignored) so release
+// builds pick them up without exporting variables manually. Existing
+// environment variables always win over .env entries.
+const envFile = join(projectRoot, ".env");
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (match && match[2] && !(match[1] in process.env)) process.env[match[1]] = match[2];
+  }
+}
+
 const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8"));
 const version = packageJson.version;
 const outputDirectory = join("releases", `v${version}`);

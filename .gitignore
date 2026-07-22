@@ -27,3 +27,6 @@ releases/v0.1.0/Quota Window-0.1.0-arm64-mac.zip.blockmap
 releases/v0.1.0/Quota Window-0.1.0-arm64.dmg
 releases/v0.1.0/Quota Window-0.1.0-arm64.dmg.blockmap
 releases/v0.1.0/latest-mac.yml
+
+# Local signing credentials
+.env
