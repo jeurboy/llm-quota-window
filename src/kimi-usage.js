@@ -79,4 +79,16 @@ function parseKimiUsagePayload(payload) {
   };
 }
 
-module.exports = { parseKimiUsagePayload };
+// The Kimi Code CLI embeds its public OAuth client id in its executable
+// (KIMI_CODE_FLOW_CONFIG). Extracting it at runtime keeps the id out of this
+// repository while letting the app refresh tokens with the same client the
+// CLI itself uses.
+function extractKimiClientId(buffer) {
+  if (!buffer) return null;
+  const match = buffer
+    .toString("latin1")
+    .match(/clientId\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/);
+  return match ? match[1] : null;
+}
+
+module.exports = { parseKimiUsagePayload, extractKimiClientId };

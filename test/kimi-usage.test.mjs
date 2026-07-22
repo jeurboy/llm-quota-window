@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { parseKimiUsagePayload } = require("../src/kimi-usage.js");
+const { parseKimiUsagePayload, extractKimiClientId } = require("../src/kimi-usage.js");
 
 const samplePayload = {
   user: { userId: "abc", region: "REGION_OVERSEA", membership: { level: "LEVEL_BASIC" } },
@@ -44,6 +44,18 @@ test("handles an empty or malformed payload", () => {
   assert.deepEqual(parseKimiUsagePayload(null), { plan: null, windows: [] });
   assert.deepEqual(parseKimiUsagePayload({}), { plan: null, windows: [] });
   assert.deepEqual(parseKimiUsagePayload({ limits: [{ window: {}, detail: {} }] }), { plan: null, windows: [] });
+});
+
+test("extracts the CLI's embedded OAuth client id from executable bytes", () => {
+  const id = "17e5f671-d194-4dfb-9706-5516cb48c098";
+  const binary = Buffer.concat([
+    Buffer.from([0x00, 0xff, 0x90]),
+    Buffer.from(`oauthHost:"https://auth.kimi.com",clientId: "${id}"`, "utf8"),
+    Buffer.from([0x00, 0x1b]),
+  ]);
+  assert.equal(extractKimiClientId(binary), id);
+  assert.equal(extractKimiClientId(Buffer.from("no ids here")), null);
+  assert.equal(extractKimiClientId(null), null);
 });
 
 test("ignores limits without window duration units it understands", () => {

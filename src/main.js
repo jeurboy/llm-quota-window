@@ -5,7 +5,7 @@ const { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSy
 const { delimiter, join } = require("path");
 const { singleFlight } = require("./single-flight");
 const { selectCodexDailyUsageBucket } = require("./codex-usage");
-const { parseKimiUsagePayload } = require("./kimi-usage");
+const { parseKimiUsagePayload, extractKimiClientId } = require("./kimi-usage");
 const { extractCursorSession, parseCursorUsageSummary } = require("./cursor-usage");
 const { parseGoogleQuotaBuckets, parseAntigravityModels, googlePlanLabel, googleProjectId } = require("./google-usage");
 const { extractCopilotToken, parseCopilotUsage } = require("./copilot-usage");
@@ -20,6 +20,7 @@ const {
   AUTO_PING_INTERVALS_MINUTES,
   RELEASES_API_URL,
   RELEASES_PAGE_URL,
+  DONATE_URL,
   GITHUB_API_VERSION,
   SETTINGS_FILE_NAME,
   cliKnownDirectories,
@@ -414,6 +415,7 @@ function updateTrayMenu() {
     },
     updateTrayItem(),
     { type: "separator" },
+    { label: "☕ Support development", click: () => shell.openExternal(DONATE_URL) },
     { label: "Quit Quota Window", click: () => { isQuitting = true; app.quit(); } },
   ]);
   tray.setToolTip(latestQuotas.length ? latestQuotas.map(quotaMenuLabel).join(" · ") : "Quota Window");
@@ -788,8 +790,26 @@ function readKimiCredentials() {
 
 const KIMI_SIGN_IN_MESSAGE = "Kimi Code is signed out. Run `/login` in the Kimi Code CLI and refresh.";
 
+// Resolved once per app session: the env override, or the public client id
+// extracted from the installed Kimi Code CLI executable.
+let discoveredKimiClientId = null;
+
+function kimiClientId() {
+  if (KIMI_CLIENT_ID) return KIMI_CLIENT_ID;
+  if (!discoveredKimiClientId) {
+    try {
+      const executable = resolveCli("kimi");
+      if (executable !== "kimi") discoveredKimiClientId = extractKimiClientId(readFileSync(executable));
+    } catch {
+      // Discovery is best-effort; the sign-in guidance below covers the rest.
+    }
+  }
+  return discoveredKimiClientId;
+}
+
 async function refreshKimiCredentials(credentials) {
-  if (!KIMI_CLIENT_ID) {
+  const clientId = kimiClientId();
+  if (!clientId) {
     throw new Error("Kimi token expired. Use the Kimi Code CLI once to refresh it (or set KIMI_CLIENT_ID).");
   }
   if (!credentials.refresh_token) throw new Error(KIMI_SIGN_IN_MESSAGE);
@@ -797,7 +817,7 @@ async function refreshKimiCredentials(credentials) {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
     body: new URLSearchParams({
-      client_id: KIMI_CLIENT_ID,
+      client_id: clientId,
       grant_type: "refresh_token",
       refresh_token: credentials.refresh_token,
     }),

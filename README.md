@@ -119,3 +119,7 @@ The release script regenerates native 1x/2x macOS menu-bar template icons from `
 ## Security model
 
 Quota Window is intentionally local-first. Its only network requests are authenticated calls directly to Anthropic's Claude usage endpoint, Kimi's usage endpoint, and Cursor's usage endpoint, using the local CLI/editor OAuth credentials. The Codex request runs through the installed `codex` CLI. No account data is sent to a third party.
+
+## Support
+
+If Quota Window saves you time every day, consider supporting its development on [Patreon](https://www.patreon.com/PornprasithMahasith). Every contribution helps keep the app updated as AI services change their APIs. 🙏

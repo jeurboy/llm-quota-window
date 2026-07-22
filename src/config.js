@@ -16,6 +16,7 @@ const AUTO_PING_INTERVALS_MINUTES = [0, 30, 60, 120];
 // --- App updates & local settings ---
 const RELEASES_API_URL = "https://api.github.com/repos/jeurboy/llm-quota-window/releases/latest";
 const RELEASES_PAGE_URL = "https://github.com/jeurboy/llm-quota-window/releases";
+const DONATE_URL = "https://www.patreon.com/PornprasithMahasith";
 const GITHUB_API_VERSION = "2022-11-28";
 const SETTINGS_FILE_NAME = "quota-window-settings.json";
 
@@ -127,6 +128,7 @@ module.exports = {
   AUTO_PING_INTERVALS_MINUTES,
   RELEASES_API_URL,
   RELEASES_PAGE_URL,
+  DONATE_URL,
   GITHUB_API_VERSION,
   SETTINGS_FILE_NAME,
   cliKnownDirectories,

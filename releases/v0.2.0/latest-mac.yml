@@ -1,11 +1,11 @@
 version: 0.2.0
 files:
   - url: Quota-Window-0.2.0-arm64-mac.zip
-    sha512: pQhJ2VASx7J+hkWyR3vVn49cH1A76KBQMMmAIy1vu1814iBpshmf2oID2oStlgsklIY8ZbcFaUd04jEVAZt4Dg==
-    size: 113424607
+    sha512: me9Ptatq8ynn/O99pGwHX5XCJ5I2UNlHnDTeWUOO2OGN4AUQ0j+VUbOPmzhpGbQm5z/svXpRx7mbYi22K0uJlQ==
+    size: 113425071
   - url: Quota-Window-0.2.0-arm64.dmg
-    sha512: HZ9fnyPCO6g+XXiJux33/KpnS2OvAd2dHE51fGpGJKA5zHSnnmccmqXz4qDcee/jeo3cnVY0YcWDnDpVgcjskQ==
-    size: 115488151
+    sha512: htTkhpenGKyqy9o2/Aklj7skMs9UwswbIxpOah1/CdJrWVdaxg/BNgg2gdDjjYe4JroArZvj82NzRNneBtJBXw==
+    size: 115493426
 path: Quota-Window-0.2.0-arm64-mac.zip
-sha512: pQhJ2VASx7J+hkWyR3vVn49cH1A76KBQMMmAIy1vu1814iBpshmf2oID2oStlgsklIY8ZbcFaUd04jEVAZt4Dg==
-releaseDate: '2026-07-22T11:47:25.797Z'
+sha512: me9Ptatq8ynn/O99pGwHX5XCJ5I2UNlHnDTeWUOO2OGN4AUQ0j+VUbOPmzhpGbQm5z/svXpRx7mbYi22K0uJlQ==
+releaseDate: '2026-07-22T14:12:37.455Z'
