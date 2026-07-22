@@ -1213,6 +1213,7 @@ ipcMain.handle("app:getStartOnLogin", () => app.getLoginItemSettings().openAtLog
 ipcMain.handle("app:setStartOnLogin", (_, enabled) => setStartOnLogin(enabled));
 ipcMain.handle("app:checkForUpdates", checkForUpdates);
 ipcMain.handle("app:openRelease", () => shell.openExternal(updateState.releaseUrl || RELEASES_PAGE_URL));
+ipcMain.handle("app:openDonate", () => shell.openExternal(DONATE_URL));
 ipcMain.handle("app:showDashboard", () => showMainWindow());
 ipcMain.handle("app:hidePopup", () => popupWindow?.hide());
 ipcMain.on("popup:fitHeight", (event, height) => {

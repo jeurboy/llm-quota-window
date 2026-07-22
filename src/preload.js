@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("quotaWindow", {
   setStartOnLogin: (enabled) => ipcRenderer.invoke("app:setStartOnLogin", enabled),
   checkForUpdates: () => ipcRenderer.invoke("app:checkForUpdates"),
   openRelease: () => ipcRenderer.invoke("app:openRelease"),
+  openDonate: () => ipcRenderer.invoke("app:openDonate"),
   showDashboard: () => ipcRenderer.invoke("app:showDashboard"),
   hidePopup: () => ipcRenderer.invoke("app:hidePopup"),
   pingAll: () => ipcRenderer.invoke("provider:pingAll"),

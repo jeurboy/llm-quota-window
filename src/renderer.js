@@ -10,6 +10,7 @@ const lastUpdated = document.querySelector("#last-updated");
 const connectionDot = document.querySelector("#connection-dot");
 const startOnLoginCheckbox = document.querySelector("#start-on-login");
 const updateButton = document.querySelector("#update-button");
+const supportButton = document.querySelector("#support-button");
 const appVersion = document.querySelector("#app-version");
 let latestProviders = [];
 let alwaysOnTop = localStorage.getItem("alwaysOnTop") === "true";
@@ -227,6 +228,7 @@ startOnLoginCheckbox.addEventListener("change", async () => {
     startOnLoginCheckbox.disabled = false;
   }
 });
+supportButton.addEventListener("click", () => window.quotaWindow.openDonate());
 updateButton.addEventListener("click", async () => {
   if (updateButton.dataset.status === "available") {
     await window.quotaWindow.openRelease();

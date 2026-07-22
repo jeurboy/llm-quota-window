@@ -95,6 +95,7 @@ function renderUpdate(state) {
   else if (state.status === "up-to-date") updateButton.textContent = "Up to date";
   else if (state.status === "no-releases") updateButton.textContent = "No releases yet";
   else updateButton.textContent = "Check updates";
+  updateButton.dataset.status = state.status;
 }
 
 async function refresh(force = false) {
@@ -126,6 +127,7 @@ themeButton.addEventListener("click", () => {
   window.quotaWindow.setTheme(nextTheme);
 });
 document.querySelector("#open-dashboard").addEventListener("click", () => window.quotaWindow.showDashboard());
+document.querySelector("#popup-support").addEventListener("click", () => window.quotaWindow.openDonate());
 window.quotaWindow.onQuotaUpdated(renderProviders);
 window.quotaWindow.onThemeChanged(renderTheme);
 window.quotaWindow.onUpdateStateChanged(renderUpdate);
