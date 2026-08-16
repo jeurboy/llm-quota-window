@@ -52,6 +52,43 @@ function claudeCredentialPaths() {
 // --- Codex ---
 const CODEX_USAGE_PAGE_URL = "https://chatgpt.com/codex/settings/usage";
 
+// --- API provider usage ---
+// These optional keys are read only from the process environment. They are
+// deliberately not written to Quota Window's local settings file.
+const OPENROUTER_MANAGEMENT_KEY = process.env.OPENROUTER_MANAGEMENT_KEY || null;
+const OPENROUTER_CREDITS_URL = "https://openrouter.ai/api/v1/credits";
+const OPENROUTER_USAGE_PAGE_URL = "https://openrouter.ai/activity";
+const OPENAI_ADMIN_KEY = process.env.OPENAI_ADMIN_KEY || null;
+const OPENAI_COSTS_URL = "https://api.openai.com/v1/organization/costs";
+const OPENAI_API_USAGE_PAGE_URL = "https://platform.openai.com/usage";
+const ANTHROPIC_ADMIN_KEY = process.env.ANTHROPIC_ADMIN_KEY || null;
+const ANTHROPIC_USAGE_REPORT_URL = "https://api.anthropic.com/v1/organizations/usage_report/messages";
+const ANTHROPIC_API_USAGE_PAGE_URL = "https://console.anthropic.com/settings/usage";
+const GROQ_API_KEY = process.env.GROQ_API_KEY || null;
+const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
+const GROQ_USAGE_PAGE_URL = "https://console.groq.com/settings/limits";
+const XAI_MANAGEMENT_KEY = process.env.XAI_MANAGEMENT_KEY || null;
+const XAI_TEAM_ID = process.env.XAI_TEAM_ID || null;
+const XAI_MANAGEMENT_API_URL = "https://management-api.x.ai";
+const XAI_API_USAGE_PAGE_URL = "https://console.x.ai/usage";
+const GROK_CLI_BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
+const GROK_USAGE_PAGE_URL = "https://grok.com/?_s=usage";
+const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.GLM_API_KEY || null;
+const ZAI_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit";
+const ZAI_SUBSCRIPTION_URL = "https://api.z.ai/api/biz/subscription/list";
+const ZAI_USAGE_PAGE_URL = "https://z.ai/manage-apikey/subscription";
+
+function zaiSettingsPaths() {
+  return [
+    join(homedir(), ".claude", "settings.json"),
+    join(homedir(), ".claude", "settings.local.json"),
+  ];
+}
+
+function grokCredentialsPath() {
+  return join(process.env.GROK_HOME || join(homedir(), ".grok"), "auth.json");
+}
+
 // --- Kimi ---
 // No OAuth client is embedded. Set KIMI_CLIENT_ID (the Kimi Code CLI's public
 // client id) to let the app refresh expired tokens itself; otherwise it uses
@@ -139,6 +176,30 @@ module.exports = {
   CLAUDE_PROJECTS_ROOT,
   claudeCredentialPaths,
   CODEX_USAGE_PAGE_URL,
+  OPENROUTER_MANAGEMENT_KEY,
+  OPENROUTER_CREDITS_URL,
+  OPENROUTER_USAGE_PAGE_URL,
+  OPENAI_ADMIN_KEY,
+  OPENAI_COSTS_URL,
+  OPENAI_API_USAGE_PAGE_URL,
+  ANTHROPIC_ADMIN_KEY,
+  ANTHROPIC_USAGE_REPORT_URL,
+  ANTHROPIC_API_USAGE_PAGE_URL,
+  GROQ_API_KEY,
+  GROQ_MODELS_URL,
+  GROQ_USAGE_PAGE_URL,
+  XAI_MANAGEMENT_KEY,
+  XAI_TEAM_ID,
+  XAI_MANAGEMENT_API_URL,
+  XAI_API_USAGE_PAGE_URL,
+  GROK_CLI_BILLING_URL,
+  GROK_USAGE_PAGE_URL,
+  grokCredentialsPath,
+  ZAI_API_KEY,
+  ZAI_QUOTA_URL,
+  ZAI_SUBSCRIPTION_URL,
+  ZAI_USAGE_PAGE_URL,
+  zaiSettingsPaths,
   KIMI_CLIENT_ID,
   KIMI_TOKEN_URL,
   KIMI_USAGE_URL,

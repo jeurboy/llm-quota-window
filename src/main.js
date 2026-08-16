@@ -31,6 +31,30 @@ const {
   CLAUDE_PROJECTS_ROOT,
   claudeCredentialPaths,
   CODEX_USAGE_PAGE_URL,
+  OPENROUTER_MANAGEMENT_KEY,
+  OPENROUTER_CREDITS_URL,
+  OPENROUTER_USAGE_PAGE_URL,
+  OPENAI_ADMIN_KEY,
+  OPENAI_COSTS_URL,
+  OPENAI_API_USAGE_PAGE_URL,
+  ANTHROPIC_ADMIN_KEY,
+  ANTHROPIC_USAGE_REPORT_URL,
+  ANTHROPIC_API_USAGE_PAGE_URL,
+  GROQ_API_KEY,
+  GROQ_MODELS_URL,
+  GROQ_USAGE_PAGE_URL,
+  XAI_MANAGEMENT_KEY,
+  XAI_TEAM_ID,
+  XAI_MANAGEMENT_API_URL,
+  XAI_API_USAGE_PAGE_URL,
+  GROK_CLI_BILLING_URL,
+  GROK_USAGE_PAGE_URL,
+  grokCredentialsPath,
+  ZAI_API_KEY,
+  ZAI_QUOTA_URL,
+  ZAI_SUBSCRIPTION_URL,
+  ZAI_USAGE_PAGE_URL,
+  zaiSettingsPaths,
   KIMI_CLIENT_ID,
   KIMI_TOKEN_URL,
   KIMI_USAGE_URL,
@@ -1140,6 +1164,277 @@ async function getCopilotQuota() {
   };
 }
 
+// --- API provider usage ---
+
+function monthStartIso() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+function dollars(value) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+
+function durationFromRateLimit(value) {
+  const match = String(value || "").match(/(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?/);
+  if (!match || !match[0]) return null;
+  const milliseconds = ((Number(match[1]) || 0) * 3_600_000) + ((Number(match[2]) || 0) * 60_000) + ((Number(match[3]) || 0) * 1_000);
+  return milliseconds ? new Date(Date.now() + milliseconds).toISOString() : null;
+}
+
+async function getOpenRouterQuota() {
+  if (!OPENROUTER_MANAGEMENT_KEY) throw notDetectedError("Set OPENROUTER_MANAGEMENT_KEY to monitor OpenRouter credits.");
+  const response = await fetch(OPENROUTER_CREDITS_URL, {
+    headers: { Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("OpenRouter management key was rejected. Create a Management API key and refresh.");
+  if (!response.ok) throw new Error(`OpenRouter credits request failed (${response.status}).`);
+  const credits = (await response.json()).data || {};
+  const total = Number(credits.total_credits || 0);
+  const used = Number(credits.total_usage || 0);
+  const remaining = Math.max(0, total - used);
+  return {
+    provider: "openrouter",
+    label: "OpenRouter",
+    connected: true,
+    plan: "API credits",
+    windows: total > 0 ? [{ name: "Credit balance", usedPercent: Math.min(100, 100 * used / total), durationMinutes: null, resetsAt: null }] : [],
+    creditSummary: `${dollars(remaining)} credits remaining · ${dollars(used)} used`,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getOpenAiApiQuota() {
+  if (!OPENAI_ADMIN_KEY) throw notDetectedError("Set OPENAI_ADMIN_KEY to monitor OpenAI API costs.");
+  const url = new URL(OPENAI_COSTS_URL);
+  url.searchParams.set("start_time", String(Math.floor(new Date(monthStartIso()).getTime() / 1_000)));
+  url.searchParams.set("bucket_width", "1d");
+  url.searchParams.set("limit", "31");
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${OPENAI_ADMIN_KEY}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("OpenAI Admin key was rejected. An Organization Owner must create one.");
+  if (!response.ok) throw new Error(`OpenAI costs request failed (${response.status}).`);
+  const payload = await response.json();
+  const spent = (payload.data || []).flatMap((bucket) => bucket.results || [])
+    .reduce((total, result) => total + Number(result.amount?.value || 0), 0);
+  return {
+    provider: "openai-api",
+    label: "OpenAI API",
+    connected: true,
+    plan: "Organization API",
+    windows: [],
+    creditSummary: `${dollars(spent)} spent this month`,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getAnthropicApiQuota() {
+  if (!ANTHROPIC_ADMIN_KEY) throw notDetectedError("Set ANTHROPIC_ADMIN_KEY to monitor Anthropic API usage.");
+  const url = new URL(ANTHROPIC_USAGE_REPORT_URL);
+  url.searchParams.set("starting_at", monthStartIso());
+  url.searchParams.set("bucket_width", "1d");
+  url.searchParams.set("limit", "31");
+  const response = await fetch(url, {
+    headers: { "x-api-key": ANTHROPIC_ADMIN_KEY, "anthropic-version": CLAUDE_API_VERSION },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("Anthropic Admin key was rejected. Create one in the Anthropic Console.");
+  if (!response.ok) throw new Error(`Anthropic usage request failed (${response.status}).`);
+  const results = (await response.json()).data?.flatMap((bucket) => bucket.results || []) || [];
+  const tokens = results.reduce((total, result) => total + Number(result.uncached_input_tokens || 0)
+    + Number(result.cache_read_input_tokens || 0) + Number(result.output_tokens || 0)
+    + Object.values(result.cache_creation || {}).reduce((sum, value) => sum + Number(value || 0), 0), 0);
+  return {
+    provider: "anthropic-api",
+    label: "Anthropic API",
+    connected: true,
+    plan: "Organization API",
+    windows: [],
+    tokenUsage: { source: "API usage this month", dayLabel: "this month", dayTokens: tokens },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getGroqQuota() {
+  if (!GROQ_API_KEY) throw notDetectedError("Set GROQ_API_KEY to monitor Groq rate limits.");
+  const response = await fetch(GROQ_MODELS_URL, {
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("Groq API key was rejected. Create a key in Groq Console and refresh.");
+  if (!response.ok) throw new Error(`Groq limits request failed (${response.status}).`);
+  const limit = Number(response.headers.get("x-ratelimit-limit-requests"));
+  const remaining = Number(response.headers.get("x-ratelimit-remaining-requests"));
+  const resetsAt = durationFromRateLimit(response.headers.get("x-ratelimit-reset-requests"));
+  return {
+    provider: "groq",
+    label: "Groq",
+    connected: true,
+    plan: "API rate limits",
+    windows: Number.isFinite(limit) && limit > 0 && Number.isFinite(remaining)
+      ? [{ name: "Requests", usedPercent: Math.max(0, Math.min(100, 100 * (1 - remaining / limit))), durationMinutes: null, resetsAt }]
+      : [],
+    creditSummary: "Rate-limit data from Groq response headers",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function findGrokCredentials(value, candidates = []) {
+  if (!value || typeof value !== "object") return candidates;
+  if (typeof value.key === "string") candidates.push(value);
+  for (const child of Object.values(value)) findGrokCredentials(child, candidates);
+  return candidates;
+}
+
+function readGrokCredentials() {
+  try {
+    const candidates = findGrokCredentials(JSON.parse(readFileSync(grokCredentialsPath(), "utf8")));
+    const now = Date.now();
+    return candidates
+      .filter((candidate) => !candidate.expires_at || new Date(candidate.expires_at).getTime() > now)
+      .sort((left, right) => new Date(right.expires_at || 0).getTime() - new Date(left.expires_at || 0).getTime())[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getXaiApiQuota() {
+  if (!XAI_MANAGEMENT_KEY || !XAI_TEAM_ID) {
+    throw notDetectedError("Set XAI_MANAGEMENT_KEY and XAI_TEAM_ID to monitor xAI API credits.");
+  }
+  const response = await fetch(`${XAI_MANAGEMENT_API_URL}/v1/billing/teams/${encodeURIComponent(XAI_TEAM_ID)}/prepaid/balance`, {
+    headers: { Authorization: `Bearer ${XAI_MANAGEMENT_KEY}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("xAI Management key was rejected. Check its Billing read permission.");
+  if (!response.ok) throw new Error(`xAI credit balance request failed (${response.status}).`);
+  const balance = await response.json();
+  const cents = Math.abs(Number(balance.total?.val || 0));
+  return {
+    provider: "xai-api",
+    label: "xAI API",
+    connected: true,
+    plan: "API credits",
+    windows: [],
+    creditSummary: `${dollars(cents / 100)} prepaid credits available`,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getSuperGrokQuota() {
+  const credentials = readGrokCredentials();
+  if (!credentials?.key) throw notDetectedError("Grok CLI is not signed in. Run `grok login` to monitor SuperGrok usage.");
+  const response = await fetch(GROK_CLI_BILLING_URL, {
+    headers: {
+      Authorization: `Bearer ${credentials.key}`,
+      "x-xai-token-auth": "xai-grok-cli",
+      Accept: "application/json",
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("SuperGrok sign-in expired. Run `grok login` and refresh.");
+  if (!response.ok) throw new Error(`SuperGrok usage request failed (${response.status}).`);
+  const billing = await response.json();
+  const config = billing.config || billing;
+  const onDemandUsed = Number(config.onDemandUsed?.val || billing.onDemandUsed?.val || 0);
+  const onDemandCap = Number(config.onDemandCap?.val || billing.onDemandCap?.val || 0);
+  const directPercent = Number(config.creditUsagePercent ?? billing.creditUsagePercent);
+  const usedPercent = Number.isFinite(directPercent) ? directPercent
+    : onDemandCap > 0 ? 100 * onDemandUsed / onDemandCap : 0;
+  const resetsAt = config.currentPeriod?.end || config.billingPeriodEnd || billing.billingPeriodEnd || null;
+  return {
+    provider: "supergrok",
+    label: "SuperGrok",
+    connected: true,
+    plan: credentials.auth_mode || "Subscription",
+    windows: [{ name: "Subscription usage", usedPercent: Math.max(0, Math.min(100, usedPercent)), durationMinutes: null, resetsAt }],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function zaiDurationMinutes(limit) {
+  const units = { 3: 60, 4: 1_440, 5: 43_200, 6: 10_080 };
+  const duration = Number(units[limit.unit]) * Number(limit.number || 0);
+  return Number.isFinite(duration) && duration > 0 ? duration : null;
+}
+
+function zaiResetTime(limit) {
+  const epoch = Number(limit.nextResetTime);
+  return Number.isFinite(epoch) && epoch > 0 ? new Date(epoch).toISOString() : null;
+}
+
+function readZaiApiKey() {
+  if (ZAI_API_KEY) return ZAI_API_KEY;
+  for (const settingsPath of zaiSettingsPaths()) {
+    try {
+      const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+      const baseUrl = String(settings.env?.ANTHROPIC_BASE_URL || "");
+      const key = settings.env?.ANTHROPIC_AUTH_TOKEN;
+      if (/^https:\/\/api\.z\.ai\//.test(baseUrl) && typeof key === "string" && key) return key;
+    } catch {
+      // Z.ai is optional; continue to the next local Claude Code settings file.
+    }
+  }
+  return null;
+}
+
+async function getZaiQuota() {
+  const apiKey = readZaiApiKey();
+  if (!apiKey) throw notDetectedError("Set ZAI_API_KEY or configure Z.ai in Claude Code to monitor its Coding Plan usage.");
+  const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
+  const [quotaResult, subscriptionResult] = await Promise.allSettled([
+    fetch(ZAI_QUOTA_URL, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),
+    fetch(ZAI_SUBSCRIPTION_URL, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),
+  ]);
+  if (quotaResult.status === "rejected") throw quotaResult.reason;
+  const quotaResponse = quotaResult.value;
+  if (quotaResponse.status === 401 || quotaResponse.status === 403) throw new Error("Z.ai API key was rejected. Create a new key and refresh.");
+  if (!quotaResponse.ok) throw new Error(`Z.ai quota request failed (${quotaResponse.status}).`);
+  const quota = await quotaResponse.json();
+  if (quota.success === false && /coding plan/i.test(quota.msg || "")) {
+    throw notDetectedError("No active Z.ai Coding Plan was found for this API key.");
+  }
+  const limits = Array.isArray(quota.data?.limits) ? quota.data.limits : [];
+  const windows = limits.flatMap((limit) => {
+    const durationMinutes = zaiDurationMinutes(limit);
+    if (["CREDIT_LIMIT", "TOKENS_LIMIT"].includes(limit.type) && durationMinutes) {
+      return [{
+        name: durationMinutes < 1_440 ? "5-hour limit" : "Weekly limit",
+        usedPercent: Math.max(0, Math.min(100, Number(limit.percentage || 0))),
+        durationMinutes,
+        resetsAt: zaiResetTime(limit),
+      }];
+    }
+    if (limit.type === "TIME_LIMIT") {
+      const allowance = Number(limit.usage || 0);
+      const used = Number(limit.currentValue || 0);
+      if (!Number.isFinite(allowance) || allowance <= 0 || !Number.isFinite(used)) return [];
+      return [{
+        name: "Web search / reader",
+        usedPercent: Math.max(0, Math.min(100, 100 * used / allowance)),
+        durationMinutes: durationMinutes || 43_200,
+        resetsAt: zaiResetTime(limit),
+      }];
+    }
+    return [];
+  });
+  const plan = subscriptionResult.status === "fulfilled" && subscriptionResult.value.ok
+    ? (await subscriptionResult.value.json()).data?.find((entry) => entry?.productName)?.productName || null
+    : null;
+  if (!windows.length) throw new Error("Z.ai returned no usable Coding Plan quota windows for this API key.");
+  return {
+    provider: "zai",
+    label: "Z.ai",
+    connected: true,
+    plan,
+    windows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const quotaProviders = [
   { provider: "claude", label: "Claude", load: getClaudeQuota, ping: pingClaudeProvider },
   { provider: "codex", label: "Codex", load: getCodexQuota, ping: pingCodexProvider },
@@ -1148,6 +1443,13 @@ const quotaProviders = [
   { provider: "gemini", label: "Gemini", load: getGeminiQuota },
   { provider: "antigravity", label: "Antigravity", load: getAntigravityQuota },
   { provider: "copilot", label: "Copilot", load: getCopilotQuota },
+  { provider: "openrouter", label: "OpenRouter", load: getOpenRouterQuota },
+  { provider: "openai-api", label: "OpenAI API", load: getOpenAiApiQuota },
+  { provider: "anthropic-api", label: "Anthropic API", load: getAnthropicApiQuota },
+  { provider: "groq", label: "Groq", load: getGroqQuota },
+  { provider: "xai-api", label: "xAI API", load: getXaiApiQuota },
+  { provider: "supergrok", label: "SuperGrok", load: getSuperGrokQuota },
+  { provider: "zai", label: "Z.ai", load: getZaiQuota },
 ];
 
 async function loadQuotas() {
@@ -1250,6 +1552,13 @@ const providerUsagePages = {
   gemini: GEMINI_USAGE_PAGE_URL,
   antigravity: ANTIGRAVITY_USAGE_PAGE_URL,
   copilot: COPILOT_USAGE_PAGE_URL,
+  openrouter: OPENROUTER_USAGE_PAGE_URL,
+  "openai-api": OPENAI_API_USAGE_PAGE_URL,
+  "anthropic-api": ANTHROPIC_API_USAGE_PAGE_URL,
+  groq: GROQ_USAGE_PAGE_URL,
+  "xai-api": XAI_API_USAGE_PAGE_URL,
+  supergrok: GROK_USAGE_PAGE_URL,
+  zai: ZAI_USAGE_PAGE_URL,
 };
 
 ipcMain.handle("app:openUsage", (_, provider) => shell.openExternal(

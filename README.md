@@ -11,6 +11,13 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Gemini: daily model quotas (Pro/Flash tiers) of the Google account signed in with the Gemini CLI or Antigravity, read from `~/.gemini/oauth_creds.json`.
 - Antigravity: per-model quotas when the account has Antigravity-specific allowances; hidden when it shares the Gemini pool.
 - Copilot: premium request and chat quota of the GitHub account signed in to Copilot in an editor, read from `~/.config/github-copilot`.
+- OpenRouter: remaining API credits and total usage when `OPENROUTER_MANAGEMENT_KEY` is set.
+- OpenAI API: organization month-to-date costs when `OPENAI_ADMIN_KEY` is set.
+- Anthropic API: organization month-to-date token usage when `ANTHROPIC_ADMIN_KEY` is set.
+- Groq: current API request-rate allowance when `GROQ_API_KEY` is set.
+- xAI API: prepaid credit balance when `XAI_MANAGEMENT_KEY` and `XAI_TEAM_ID` are set.
+- SuperGrok: subscription usage from a local `grok login` session; no browser-cookie import is required.
+- Z.ai: GLM Coding Plan 5-hour, weekly, and web-search quotas when `ZAI_API_KEY` is set (`GLM_API_KEY` is also accepted for compatibility), or when Z.ai is configured in `~/.claude/settings.json`.
 - Providers that are not installed or signed in on the device are hidden automatically.
 - Turn individual providers on or off from **Providers** in the dashboard/popup or the tray's **Visible providers** menu. Disabled providers are not queried, pinged, or alerted, and the preference is saved locally.
 - Tokens: today's Codex account tokens plus lifetime and peak-day totals; Claude Code tokens processed today in local session history (input, output, and cache tokens).
@@ -26,6 +33,19 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - A native alert opens the tray popup when a quota crosses each lower 10% step, when a 5-hour/session allowance drops below 20% left, or when a weekly allowance drops below 10% left. Each reset window is alerted only once per threshold crossing.
 
 The app reads the credentials already managed by the official CLIs. It never uploads or logs credentials; when Kimi Code's short-lived OAuth token expires, the app refreshes it and writes the new token back to the Kimi Code CLI's own credentials file, the same as the CLI does.
+
+### Optional API usage providers
+
+Set the relevant environment variable before launching Quota Window. The app never saves these keys to its settings file. OpenRouter requires a Management API key; OpenAI and Anthropic usage reports require organization admin keys. xAI API requires a management key with Billing read permission and its team ID. Groq checks its documented response rate-limit headers from the models endpoint, so it is rate-limited to the app's normal refresh cadence. SuperGrok is read from the token created by `grok login` in `~/.grok/auth.json`; the token never leaves this device.
+
+```bash
+OPENROUTER_MANAGEMENT_KEY=... npm start
+OPENAI_ADMIN_KEY=... npm start
+ANTHROPIC_ADMIN_KEY=... npm start
+GROQ_API_KEY=... npm start
+XAI_MANAGEMENT_KEY=... XAI_TEAM_ID=... npm start
+ZAI_API_KEY=... npm start
+```
 
 ## Requirements
 

@@ -199,7 +199,7 @@ function render(providers) {
     const tokenUsage = card.querySelector(".token-usage");
     if (provider.tokenUsage) { tokenUsage.hidden = false; tokenUsage.innerHTML = tokenMarkup(provider.tokenUsage); }
     const credits = card.querySelector(".credits");
-    credits.textContent = provider.provider === "codex" && provider.credits ? `${provider.credits} reset credits available` : "";
+    credits.textContent = provider.creditSummary || (provider.provider === "codex" && provider.credits ? `${provider.credits} reset credits available` : "");
     card.querySelector(".usage-link").addEventListener("click", () => window.quotaWindow.openUsage(provider.provider));
     cards.append(card);
   }
