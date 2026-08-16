@@ -18,6 +18,7 @@
           <button id="theme-button" class="window-button" type="button" aria-label="Toggle color theme" title="Switch to light theme">Light</button>
           <button id="pin-button" class="window-button" type="button" aria-pressed="false" title="Keep window on top">Pin</button>
           <button id="minimize-button" class="window-button minimize-button" type="button" aria-label="Minimize window" title="Minimize window">−</button>
+          <button id="providers-button" class="window-button" type="button" title="Choose providers to monitor">Providers</button>
           <button id="ping-all-button" class="refresh-button" type="button" title="Ping every connected provider to start or refresh its usage window">Ping All</button>
           <button id="refresh-button" class="refresh-button" type="button">Refresh</button>
         </div>
@@ -27,6 +28,14 @@
         <span id="connection-dot" class="connection-dot"></span>
         <span id="summary-text">Loading your local CLI accounts…</span>
         <span id="last-updated"></span>
+      </section>
+
+      <section id="providers-panel" class="providers-panel" hidden aria-label="Providers to monitor">
+        <div class="providers-panel-heading">
+          <div><strong>Providers to monitor</strong><span>Disabled providers are hidden and are not checked, pinged, or alerted.</span></div>
+          <button id="close-providers-button" type="button" aria-label="Close provider settings">×</button>
+        </div>
+        <div id="provider-toggles" class="provider-toggles"></div>
       </section>
 
       <section id="cards" class="cards" aria-live="polite"></section>

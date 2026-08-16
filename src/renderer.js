@@ -5,6 +5,10 @@ const pingAllButton = document.querySelector("#ping-all-button");
 const pinButton = document.querySelector("#pin-button");
 const themeButton = document.querySelector("#theme-button");
 const minimizeButton = document.querySelector("#minimize-button");
+const providersButton = document.querySelector("#providers-button");
+const providersPanel = document.querySelector("#providers-panel");
+const providerToggles = document.querySelector("#provider-toggles");
+const closeProvidersButton = document.querySelector("#close-providers-button");
 const summaryText = document.querySelector("#summary-text");
 const lastUpdated = document.querySelector("#last-updated");
 const connectionDot = document.querySelector("#connection-dot");
@@ -16,6 +20,38 @@ let latestProviders = [];
 let alwaysOnTop = localStorage.getItem("alwaysOnTop") === "true";
 let themePreference = localStorage.getItem("colorTheme") || "system";
 let colorTheme = "dark";
+
+function renderProviderSettings(settings) {
+  providerToggles.replaceChildren();
+  for (const provider of settings) {
+    const label = document.createElement("label");
+    label.className = "provider-toggle";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = provider.enabled;
+    checkbox.addEventListener("change", async () => {
+      checkbox.disabled = true;
+      try {
+        await window.quotaWindow.setProviderEnabled(provider.provider, checkbox.checked);
+      } catch {
+        checkbox.checked = !checkbox.checked;
+      } finally {
+        checkbox.disabled = false;
+      }
+    });
+    const name = document.createElement("span");
+    name.textContent = provider.label;
+    label.append(checkbox, name);
+    providerToggles.append(label);
+  }
+}
+
+function toggleProvidersPanel(show = providersPanel.hidden) {
+  providersPanel.hidden = !show;
+  providersButton.classList.toggle("active", show);
+  providersButton.setAttribute("aria-expanded", String(show));
+  if (show) window.quotaWindow.getProviderSettings().then(renderProviderSettings);
+}
 
 function renderTheme(themeState) {
   const state = typeof themeState === "string"
@@ -209,6 +245,8 @@ pingAllButton.addEventListener("click", async () => {
   }
 });
 minimizeButton.addEventListener("click", () => window.quotaWindow.minimize());
+providersButton.addEventListener("click", () => toggleProvidersPanel());
+closeProvidersButton.addEventListener("click", () => toggleProvidersPanel(false));
 pinButton.addEventListener("click", async () => {
   const enabled = await window.quotaWindow.setAlwaysOnTop(!alwaysOnTop);
   localStorage.setItem("alwaysOnTop", String(enabled));
@@ -248,9 +286,14 @@ window.quotaWindow.onThemeChanged((state) => {
 });
 window.quotaWindow.onStartOnLoginChanged((enabled) => { startOnLoginCheckbox.checked = enabled; });
 window.quotaWindow.onUpdateStateChanged(renderUpdateState);
+window.quotaWindow.onProviderSettingsChanged((settings) => {
+  renderProviderSettings(settings);
+  refresh(true);
+});
 setInterval(updateCountdowns, 1000);
 window.quotaWindow.setAlwaysOnTop(alwaysOnTop).then(renderPinState);
 window.quotaWindow.setTheme(themePreference).then(renderTheme);
 window.quotaWindow.getStartOnLogin().then((enabled) => { startOnLoginCheckbox.checked = enabled; });
 window.quotaWindow.getVersion().then((version) => { appVersion.textContent = `v${version}`; });
+window.quotaWindow.getProviderSettings().then(renderProviderSettings);
 refresh();

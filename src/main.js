@@ -73,6 +73,7 @@ const quotaAlertState = new Map();
 let claudeRetryAt = 0;
 let autoPingIntervalMinutes = 0;
 let autoPingTimer = null;
+let disabledProviders = new Set();
 
 function resolveCli(name) {
   const executableNames = process.platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name];
@@ -359,28 +360,75 @@ function autoPingSettingsPath() {
   return join(app.getPath("userData"), SETTINGS_FILE_NAME);
 }
 
-function loadAutoPingInterval() {
+function loadSettings() {
   try {
-    const { autoPingIntervalMinutes: savedInterval } = JSON.parse(readFileSync(autoPingSettingsPath(), "utf8"));
-    return AUTO_PING_INTERVALS_MINUTES.includes(savedInterval) ? savedInterval : 0;
+    const settings = JSON.parse(readFileSync(autoPingSettingsPath(), "utf8"));
+    return {
+      autoPingIntervalMinutes: AUTO_PING_INTERVALS_MINUTES.includes(settings.autoPingIntervalMinutes)
+        ? settings.autoPingIntervalMinutes
+        : 0,
+      disabledProviders: Array.isArray(settings.disabledProviders) ? settings.disabledProviders : [],
+    };
   } catch {
-    return 0;
+    return { autoPingIntervalMinutes: 0, disabledProviders: [] };
   }
 }
 
-function setAutoPingInterval(minutes) {
+function saveSettings() {
+  try {
+    writeFileSync(autoPingSettingsPath(), JSON.stringify({
+      autoPingIntervalMinutes,
+      disabledProviders: [...disabledProviders],
+    }, null, 2));
+  } catch {
+    // Preferences are optional; changes still apply for this app session.
+  }
+}
+
+function setAutoPingInterval(minutes, { persist = true } = {}) {
   autoPingIntervalMinutes = AUTO_PING_INTERVALS_MINUTES.includes(minutes) ? minutes : 0;
   if (autoPingTimer) clearInterval(autoPingTimer);
   autoPingTimer = autoPingIntervalMinutes
     ? setInterval(() => pingAllProviders().catch(() => {}), autoPingIntervalMinutes * 60 * 1000)
     : null;
-  try {
-    writeFileSync(autoPingSettingsPath(), JSON.stringify({ autoPingIntervalMinutes }, null, 2));
-  } catch {
-    // The preference is optional; automatic pinging still works for this app session.
-  }
+  if (persist) saveSettings();
   updateTrayMenu();
   return autoPingIntervalMinutes;
+}
+
+function providerEnabled(provider) {
+  return !disabledProviders.has(provider);
+}
+
+async function setProviderEnabled(provider, enabled) {
+  if (!quotaProviders.some((entry) => entry.provider === provider)) return providerEnabled(provider);
+  if (enabled) disabledProviders.delete(provider);
+  else {
+    disabledProviders.add(provider);
+    latestQuotas = latestQuotas.filter((entry) => entry.provider !== provider);
+    for (const key of quotaAlertState.keys()) {
+      if (key.startsWith(`${provider}:`)) quotaAlertState.delete(key);
+    }
+  }
+  saveSettings();
+  updateTrayMenu();
+  const providers = await refreshAndBroadcast(true);
+  sendToWindows("app:providerSettingsChanged", providerSettings());
+  return { enabled: providerEnabled(provider), providers };
+}
+
+function providerSettings() {
+  return quotaProviders.map(({ provider, label }) => ({ provider, label, enabled: providerEnabled(provider) }));
+}
+
+function showProviderMenu(window) {
+  const menu = Menu.buildFromTemplate(quotaProviders.map(({ provider, label }) => ({
+    label,
+    type: "checkbox",
+    checked: providerEnabled(provider),
+    click: (item) => setProviderEnabled(provider, item.checked).catch(() => {}),
+  })));
+  menu.popup({ window });
 }
 
 function updateTrayMenu() {
@@ -402,6 +450,15 @@ function updateTrayMenu() {
         { label: "Every 1 hour", type: "radio", checked: autoPingIntervalMinutes === 60, click: () => setAutoPingInterval(60) },
         { label: "Every 2 hours", type: "radio", checked: autoPingIntervalMinutes === 120, click: () => setAutoPingInterval(120) },
       ],
+    },
+    {
+      label: "Visible providers",
+      submenu: quotaProviders.map(({ provider, label }) => ({
+        label,
+        type: "checkbox",
+        checked: providerEnabled(provider),
+        click: (item) => setProviderEnabled(provider, item.checked).catch(() => {}),
+      })),
     },
     { label: "Always on top", type: "checkbox", checked: alwaysOnTopPreference, click: (item) => setAlwaysOnTop(item.checked) },
     { label: "Start on login", type: "checkbox", checked: startOnLoginPreference, click: (item) => setStartOnLogin(item.checked) },
@@ -1094,20 +1151,21 @@ const quotaProviders = [
 ];
 
 async function loadQuotas() {
-  const providers = await Promise.allSettled(quotaProviders.map((entry) => entry.load()));
+  const enabledProviders = quotaProviders.filter((entry) => providerEnabled(entry.provider));
+  const providers = await Promise.allSettled(enabledProviders.map((entry) => entry.load()));
   latestQuotas = providers.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
     if (result.reason?.notDetected) return null;
     return {
-      provider: quotaProviders[index].provider,
-      label: quotaProviders[index].label,
+      provider: enabledProviders[index].provider,
+      label: enabledProviders[index].label,
       connected: false,
       retrying: /temporarily rate limited/i.test(result.reason?.message || ""),
       windows: [],
       error: result.reason?.message || "Could not load this provider.",
       updatedAt: new Date().toISOString(),
     };
-  }).filter(Boolean);
+  }).filter((provider) => provider && providerEnabled(provider.provider));
   lastQuotaRefreshAt = Date.now();
   updateTrayMenu();
   return latestQuotas;
@@ -1163,7 +1221,7 @@ function pingKimiProvider() {
 async function pingAllProvidersRequest() {
   const quotas = await getQuotas();
   const connected = new Set(quotas.filter((entry) => entry.connected).map((entry) => entry.provider));
-  const targets = quotaProviders.filter((entry) => entry.ping && connected.has(entry.provider));
+  const targets = quotaProviders.filter((entry) => entry.ping && providerEnabled(entry.provider) && connected.has(entry.provider));
   if (!targets.length) throw new Error("No connected providers to ping. Sign in to a CLI and refresh.");
 
   const outcomes = await Promise.allSettled(targets.map((entry) => entry.ping()));
@@ -1216,6 +1274,9 @@ ipcMain.handle("app:openRelease", () => shell.openExternal(updateState.releaseUr
 ipcMain.handle("app:openDonate", () => shell.openExternal(DONATE_URL));
 ipcMain.handle("app:showDashboard", () => showMainWindow());
 ipcMain.handle("app:hidePopup", () => popupWindow?.hide());
+ipcMain.handle("app:getProviderSettings", () => providerSettings());
+ipcMain.handle("app:setProviderEnabled", (_, provider, enabled) => setProviderEnabled(provider, Boolean(enabled)));
+ipcMain.on("app:showProviderMenu", (event) => showProviderMenu(BrowserWindow.fromWebContents(event.sender)));
 ipcMain.on("popup:fitHeight", (event, height) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window !== popupWindow || window.isDestroyed()) return;
@@ -1229,7 +1290,9 @@ app.whenReady().then(() => {
   startOnLoginPreference = loginSettings.openAtLogin;
   createWindow(!loginSettings.wasOpenedAtLogin);
   createTray();
-  setAutoPingInterval(loadAutoPingInterval());
+  const settings = loadSettings();
+  disabledProviders = new Set(settings.disabledProviders.filter((provider) => quotaProviders.some((entry) => entry.provider === provider)));
+  setAutoPingInterval(settings.autoPingIntervalMinutes, { persist: false });
   nativeTheme.on("updated", () => {
     if (themePreference === "system") sendToWindows("app:themeChanged", currentThemeState());
   });

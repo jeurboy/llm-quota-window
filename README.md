@@ -12,6 +12,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Antigravity: per-model quotas when the account has Antigravity-specific allowances; hidden when it shares the Gemini pool.
 - Copilot: premium request and chat quota of the GitHub account signed in to Copilot in an editor, read from `~/.config/github-copilot`.
 - Providers that are not installed or signed in on the device are hidden automatically.
+- Turn individual providers on or off from **Providers** in the dashboard/popup or the tray's **Visible providers** menu. Disabled providers are not queried, pinged, or alerted, and the preference is saved locally.
 - Tokens: today's Codex account tokens plus lifetime and peak-day totals; Claude Code tokens processed today in local session history (input, output, and cache tokens).
 - A live countdown to each reset, manual refresh, and automatic refresh every 3 minutes.
 - Compact window controls for minimizing the widget into the menu bar/system tray and pinning it always on top; the pin preference is remembered.

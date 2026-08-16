@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("quotaWindow", {
   openDonate: () => ipcRenderer.invoke("app:openDonate"),
   showDashboard: () => ipcRenderer.invoke("app:showDashboard"),
   hidePopup: () => ipcRenderer.invoke("app:hidePopup"),
+  getProviderSettings: () => ipcRenderer.invoke("app:getProviderSettings"),
+  setProviderEnabled: (provider, enabled) => ipcRenderer.invoke("app:setProviderEnabled", provider, enabled),
+  showProviderMenu: () => ipcRenderer.send("app:showProviderMenu"),
   pingAll: () => ipcRenderer.invoke("provider:pingAll"),
   fitPopup: (height) => ipcRenderer.send("popup:fitHeight", height),
   onRefreshRequested: (callback) => ipcRenderer.on("quota:refreshRequested", callback),
@@ -22,4 +25,5 @@ contextBridge.exposeInMainWorld("quotaWindow", {
   onThemeChanged: (callback) => ipcRenderer.on("app:themeChanged", (_, theme) => callback(theme)),
   onStartOnLoginChanged: (callback) => ipcRenderer.on("app:startOnLoginChanged", (_, enabled) => callback(enabled)),
   onUpdateStateChanged: (callback) => ipcRenderer.on("app:updateStateChanged", (_, state) => callback(state)),
+  onProviderSettingsChanged: (callback) => ipcRenderer.on("app:providerSettingsChanged", (_, settings) => callback(settings)),
 });
