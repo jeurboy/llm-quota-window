@@ -9,6 +9,7 @@ const { parseKimiUsagePayload, extractKimiClientId } = require("./kimi-usage");
 const { extractCursorSession, parseCursorUsageSummary } = require("./cursor-usage");
 const { parseGoogleQuotaBuckets, parseAntigravityModels, googlePlanLabel, googleProjectId } = require("./google-usage");
 const { extractCopilotToken, parseCopilotUsage } = require("./copilot-usage");
+const { extractZcodeZaiToken } = require("./zcode-credentials");
 const {
   REQUEST_TIMEOUT_MS,
   QUOTA_CACHE_MS,
@@ -55,6 +56,7 @@ const {
   ZAI_SUBSCRIPTION_URL,
   ZAI_USAGE_PAGE_URL,
   zaiSettingsPaths,
+  zcodeCredentialsPath,
   KIMI_CLIENT_ID,
   KIMI_TOKEN_URL,
   KIMI_USAGE_URL,
@@ -1378,12 +1380,18 @@ function readZaiApiKey() {
       // Z.ai is optional; continue to the next local Claude Code settings file.
     }
   }
+  try {
+    const zcodeToken = extractZcodeZaiToken({ credentialsJson: readFileSync(zcodeCredentialsPath(), "utf8") });
+    if (zcodeToken) return zcodeToken;
+  } catch {
+    // ZCode is optional; its credential store only exists after a Z.ai login.
+  }
   return null;
 }
 
 async function getZaiQuota() {
   const apiKey = readZaiApiKey();
-  if (!apiKey) throw notDetectedError("Set ZAI_API_KEY or configure Z.ai in Claude Code to monitor its Coding Plan usage.");
+  if (!apiKey) throw notDetectedError("Set ZAI_API_KEY, configure Z.ai in Claude Code, or log in to Z.ai in ZCode to monitor its Coding Plan usage.");
   const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
   const [quotaResult, subscriptionResult] = await Promise.allSettled([
     fetch(ZAI_QUOTA_URL, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),

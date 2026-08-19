@@ -17,7 +17,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Groq: current API request-rate allowance when `GROQ_API_KEY` is set.
 - xAI API: prepaid credit balance when `XAI_MANAGEMENT_KEY` and `XAI_TEAM_ID` are set.
 - SuperGrok: subscription usage from a local `grok login` session; no browser-cookie import is required.
-- Z.ai: GLM Coding Plan 5-hour, weekly, and web-search quotas when `ZAI_API_KEY` is set (`GLM_API_KEY` is also accepted for compatibility), or when Z.ai is configured in `~/.claude/settings.json`.
+- Z.ai: GLM Coding Plan 5-hour, weekly, and web-search quotas when `ZAI_API_KEY` is set (`GLM_API_KEY` is also accepted for compatibility), when Z.ai is configured in `~/.claude/settings.json`, or after logging in to Z.ai in the ZCode CLI (`~/.zcode/v2/credentials.json`, decrypted locally with ZCode's own machine-keyed cipher).
 - Providers that are not installed or signed in on the device are hidden automatically.
 - Turn individual providers on or off from **Providers** in the dashboard/popup or the tray's **Visible providers** menu. Disabled providers are not queried, pinged, or alerted, and the preference is saved locally.
 - Tokens: today's Codex account tokens plus lifetime and peak-day totals; Claude Code tokens processed today in local session history (input, output, and cache tokens).

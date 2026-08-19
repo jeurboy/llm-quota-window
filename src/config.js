@@ -85,6 +85,12 @@ function zaiSettingsPaths() {
   ];
 }
 
+// The ZCode CLI's own credential store. Its Z.ai OAuth access token is
+// accepted by the quota endpoints above, so logging in to ZCode is enough.
+function zcodeCredentialsPath() {
+  return join(homedir(), ".zcode", "v2", "credentials.json");
+}
+
 function grokCredentialsPath() {
   return join(process.env.GROK_HOME || join(homedir(), ".grok"), "auth.json");
 }
@@ -200,6 +206,7 @@ module.exports = {
   ZAI_SUBSCRIPTION_URL,
   ZAI_USAGE_PAGE_URL,
   zaiSettingsPaths,
+  zcodeCredentialsPath,
   KIMI_CLIENT_ID,
   KIMI_TOKEN_URL,
   KIMI_USAGE_URL,
