@@ -103,6 +103,11 @@ const KIMI_CLIENT_ID = process.env.KIMI_CLIENT_ID || null;
 const KIMI_TOKEN_URL = "https://auth.kimi.com/api/oauth/token";
 const KIMI_USAGE_URL = `${(process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1").replace(/\/+$/, "")}/usages`;
 const KIMI_USAGE_PAGE_URL = "https://www.kimi.com/code/console";
+// Monthly membership quota is only served to kimi.com web sessions, which
+// live behind these Connect RPC gateways (same ones www.kimi.com calls).
+const KIMI_AUTH_RPC_BASE = "https://auth.kimi.com/api/account.gateway.v1.AuthService";
+const KIMI_MEMBERSHIP_STATS_URL = "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats";
+const KIMI_QR_LOGIN_URL = "https://www.kimi.com/wechat/mp/auth";
 
 function kimiCredentialsPath() {
   return join(process.env.KIMI_CODE_HOME || join(homedir(), ".kimi-code"), "credentials", "kimi-code.json");
@@ -211,6 +216,9 @@ module.exports = {
   KIMI_TOKEN_URL,
   KIMI_USAGE_URL,
   KIMI_USAGE_PAGE_URL,
+  KIMI_AUTH_RPC_BASE,
+  KIMI_MEMBERSHIP_STATS_URL,
+  KIMI_QR_LOGIN_URL,
   kimiCredentialsPath,
   CURSOR_USAGE_SUMMARY_URL,
   CURSOR_USAGE_PAGE_URL,

@@ -200,10 +200,82 @@ function render(providers) {
     if (provider.tokenUsage) { tokenUsage.hidden = false; tokenUsage.innerHTML = tokenMarkup(provider.tokenUsage); }
     const credits = card.querySelector(".credits");
     credits.textContent = provider.creditSummary || (provider.provider === "codex" && provider.credits ? `${provider.credits} reset credits available` : "");
+    if (provider.provider === "kimi") renderKimiWebControls(card, provider);
     card.querySelector(".usage-link").addEventListener("click", () => window.quotaWindow.openUsage(provider.provider));
     cards.append(card);
   }
 }
+
+// Monthly membership quota needs a separate kimi.com web sign-in (QR scan
+// with the Kimi app); offer it on the Kimi card when not yet connected.
+function renderKimiWebControls(card, provider) {
+  const actions = card.querySelector(".action-buttons");
+  if (!provider.webSignedIn) {
+    const signIn = document.createElement("button");
+    signIn.type = "button";
+    signIn.className = "usage-link kimi-signin";
+    signIn.textContent = "Sign in for monthly quota";
+    signIn.addEventListener("click", () => showKimiSignIn(card, signIn));
+    actions.append(signIn);
+  } else {
+    const signOut = document.createElement("button");
+    signOut.type = "button";
+    signOut.className = "usage-link kimi-signout";
+    signOut.textContent = "Disconnect web";
+    signOut.title = "Remove the stored kimi.com web sign-in";
+    signOut.addEventListener("click", () => window.quotaWindow.kimiSignOutWeb().then((providers) => providers && render(providers)).catch(() => {}));
+    actions.append(signOut);
+  }
+}
+
+async function showKimiSignIn(card, button) {
+  button.disabled = true;
+  button.textContent = "Loading QR…";
+  card.querySelector(".qr-panel")?.remove();
+  const panel = document.createElement("div");
+  panel.className = "qr-panel";
+  const status = document.createElement("p");
+  status.className = "qr-status";
+  const resetButton = () => {
+    button.disabled = false;
+    button.textContent = "Sign in for monthly quota";
+  };
+  try {
+    const { qrDataUrl } = await window.quotaWindow.kimiStartWebLogin();
+    const image = document.createElement("img");
+    image.src = qrDataUrl;
+    image.alt = "Kimi sign-in QR code";
+    status.textContent = "Scan with the Kimi mobile app to show monthly membership quota.";
+    panel.append(image, status);
+  } catch (error) {
+    status.textContent = error.message || "Could not start Kimi sign-in.";
+    panel.append(status);
+    resetButton();
+  }
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "qr-cancel";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", async () => {
+    await window.quotaWindow.kimiCancelWebLogin();
+    panel.remove();
+    resetButton();
+  });
+  panel.append(cancel);
+  card.querySelector(".card-actions").before(panel);
+}
+
+window.quotaWindow.onKimiWebLoginChanged((state) => {
+  const panel = document.querySelector(".qr-panel");
+  if (!panel) return;
+  const status = panel.querySelector(".qr-status");
+  if (state.status === "scanned") status.textContent = "Scanned — confirm on your phone…";
+  if (state.status === "expired") status.textContent = "Code expired — cancel and try again.";
+  if (state.status === "success") {
+    panel.remove();
+    refresh(true);
+  }
+});
 
 async function refresh(force = false) {
   refreshButton.disabled = true;

@@ -53,8 +53,32 @@ function membershipLabel(level) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+// Booster (extra usage) balances are fixed-point with 1e6 units per cent,
+// the same encoding the Kimi Code CLI decodes.
+function fixedPointCents(value) {
+  const units = toCount(value);
+  if (units === null) return null;
+  const cents = units / 1_000_000;
+  return cents > 0 && cents < 1 ? 1 : Math.round(cents);
+}
+
+// Mirrors the CLI's gating: the wallet only counts once something was ever
+// topped up (balance.amount > 0), even if the leftover balance is now zero.
+function parseKimiBoosterWallet(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const balance = raw.balance;
+  if (!balance || typeof balance !== "object" || balance.type !== "BOOSTER") return null;
+  const amount = toCount(balance.amount);
+  if (amount === null || amount <= 0) return null;
+  const amountLeft = toCount(balance.amountLeft);
+  return {
+    balanceCents: amountLeft !== null ? fixedPointCents(amountLeft) : 0,
+    monthlyUsedCents: toCount(raw.monthlyUsed?.priceInCents) ?? 0,
+  };
+}
+
 function parseKimiUsagePayload(payload) {
-  if (!payload || typeof payload !== "object") return { plan: null, windows: [] };
+  if (!payload || typeof payload !== "object") return { plan: null, windows: [], booster: null };
   const windows = [];
   for (const item of Array.isArray(payload.limits) ? payload.limits : []) {
     const window = toLimitWindow(item);
@@ -73,9 +97,14 @@ function parseKimiUsagePayload(payload) {
       });
     }
   }
+  // totalQuota is the monthly membership envelope Kimi Code shares with the
+  // Kimi app; the server leaves it unset for accounts without a monthly cap.
+  const monthly = toLimitWindow(payload.totalQuota);
+  if (monthly) windows.push({ ...monthly, name: "Monthly limit" });
   return {
     plan: membershipLabel(payload.user?.membership?.level),
     windows,
+    booster: parseKimiBoosterWallet(payload.boosterWallet),
   };
 }
 

@@ -41,9 +41,39 @@ test("derives used quota from remaining when used is missing", () => {
 });
 
 test("handles an empty or malformed payload", () => {
-  assert.deepEqual(parseKimiUsagePayload(null), { plan: null, windows: [] });
-  assert.deepEqual(parseKimiUsagePayload({}), { plan: null, windows: [] });
-  assert.deepEqual(parseKimiUsagePayload({ limits: [{ window: {}, detail: {} }] }), { plan: null, windows: [] });
+  assert.deepEqual(parseKimiUsagePayload(null), { plan: null, windows: [], booster: null });
+  assert.deepEqual(parseKimiUsagePayload({}), { plan: null, windows: [], booster: null });
+  assert.deepEqual(parseKimiUsagePayload({ limits: [{ window: {}, detail: {} }] }), { plan: null, windows: [], booster: null });
+});
+
+test("appends a monthly window when totalQuota is set", () => {
+  const { windows } = parseKimiUsagePayload({
+    usage: { limit: "100", remaining: "100" },
+    totalQuota: { limit: "1000", remaining: "990", resetTime: "2026-09-23T00:00:00Z" },
+  });
+  assert.equal(windows.length, 2);
+  const monthly = windows[1];
+  assert.equal(monthly.name, "Monthly limit");
+  assert.equal(monthly.usedPercent, 1);
+  assert.equal(monthly.resetsAt, "2026-09-23T00:00:00Z");
+});
+
+test("decodes the booster wallet once something was topped up", () => {
+  const payload = (balance) => parseKimiUsagePayload({
+    boosterWallet: {
+      balance,
+      status: "STATUS_ENABLED",
+      monthlyUsed: { priceInCents: "145" },
+      monthlyChargeLimit: { priceInCents: "100000" },
+    },
+  });
+  // amount is fixed-point with 1e6 units per cent; amountLeft drives the balance.
+  const funded = payload({ type: "BOOSTER", amount: "50000000", amountLeft: "123450000" });
+  assert.deepEqual(funded.booster, { balanceCents: 123, monthlyUsedCents: 145 });
+  // Gated like the CLI: no amount ever topped up, or not a booster balance.
+  assert.equal(payload({ type: "BOOSTER" }).booster, null);
+  assert.equal(payload({ type: "SUBSCRIPTION", amount: "50000000" }).booster, null);
+  assert.equal(parseKimiUsagePayload({ boosterWallet: { balance: { type: "BOOSTER", amount: "0" } } }).booster, null);
 });
 
 test("extracts the CLI's embedded OAuth client id from executable bytes", () => {
