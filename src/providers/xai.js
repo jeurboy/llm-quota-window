@@ -88,6 +88,6 @@ async function loadSuperGrok() {
 }
 
 module.exports = {
-  xaiApi: { provider: "xai-api", label: "xAI API", usagePageUrl: XAI_API_USAGE_PAGE_URL, load: loadXaiApi },
+  xaiApi: { provider: "xai-api", label: "xAI API", usagePageUrl: XAI_API_USAGE_PAGE_URL, usesApiKey: true, load: loadXaiApi },
   supergrok: { provider: "supergrok", label: "SuperGrok", usagePageUrl: GROK_USAGE_PAGE_URL, load: loadSuperGrok },
 };

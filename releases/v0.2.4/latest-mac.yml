@@ -1,0 +1,11 @@
+version: 0.2.4
+files:
+  - url: Quota-Window-0.2.4-arm64-mac.zip
+    sha512: oPrmEq5DsPhpjpudmS5HcBLcakDUcpvWLFDvlrNSVK7aQGCfIU0s9/QtBxNOt8Ll2yzFzJTdBkKLUA8j7rwagA==
+    size: 114838968
+  - url: Quota-Window-0.2.4-arm64.dmg
+    sha512: fupuEmnYlni20Xibjx1N3Uw2n9Mo8HVLz0TLKEmBHVVldvr1S5rlUMKaUxz/i41YiFj05qNaKRYP1nvO+j2r3Q==
+    size: 116420468
+path: Quota-Window-0.2.4-arm64-mac.zip
+sha512: oPrmEq5DsPhpjpudmS5HcBLcakDUcpvWLFDvlrNSVK7aQGCfIU0s9/QtBxNOt8Ll2yzFzJTdBkKLUA8j7rwagA==
+releaseDate: '2026-09-27T19:09:54.388Z'

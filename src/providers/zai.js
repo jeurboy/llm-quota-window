@@ -99,4 +99,4 @@ async function load() {
   };
 }
 
-module.exports = { provider: "zai", label: "Z.ai", usagePageUrl: ZAI_USAGE_PAGE_URL, load };
+module.exports = { provider: "zai", label: "Z.ai", usagePageUrl: ZAI_USAGE_PAGE_URL, usesApiKey: true, load };

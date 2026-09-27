@@ -1,6 +1,6 @@
 # Quota Window — Installation Guide
 
-Thank you for downloading Quota Window. This app shows the local Claude Code and Codex quota windows from the accounts already signed in on your computer.
+Thank you for downloading Quota Window. This app shows usage from supported accounts signed in on your computer, with optional API keys and MiMo console sign-in.
 
 ## Screenshots
 
@@ -31,11 +31,12 @@ The macOS build requires Apple Silicon (M1 or newer).
 
 - Install and sign in to [Claude Code](https://code.claude.com/) with `claude auth login`.
 - Install and sign in to the [Codex CLI](https://developers.openai.com/codex/cli/) with `codex login`.
-- Open Quota Window, then press **Refresh now**. The app checks both local accounts every 3 minutes after that.
+- Open Quota Window, then press **Refresh now**. The app checks enabled providers every 3 minutes after that.
+- Use **Providers** to enter a DeepSeek or MiniMax API key, sign in to MiMo from its card, or disconnect a provider.
 - Click the **Q** in the macOS menu bar or Windows system tray for the compact popup. Right-click it for settings and quit.
-- In the tray menu, **Auto Ping Fable** can keep the Claude 5-hour window active every 30 minutes, 1 hour, or 2 hours. Each ping uses a small amount of Claude quota.
+- The tray menu can run **Auto Ping All Providers** every 30 minutes, 1 hour, or 2 hours. Each ping uses a small amount of quota on connected providers.
 
-Quota Window only reads the credentials and usage data already managed by the official CLIs. It does not upload or store your account credentials.
+Quota Window keeps API keys entered in the app and MiMo sign-in data locally on your device. It sends credentials only to their respective providers to read usage. **Disconnect** removes credentials stored by Quota Window and stops monitoring that provider.
 
 ## Help
 

@@ -18,8 +18,13 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - xAI API: prepaid credit balance when `XAI_MANAGEMENT_KEY` and `XAI_TEAM_ID` are set.
 - SuperGrok: subscription usage from a local `grok login` session; no browser-cookie import is required.
 - Z.ai: GLM Coding Plan 5-hour, weekly, and web-search quotas when `ZAI_API_KEY` is set (`GLM_API_KEY` is also accepted for compatibility), when Z.ai is configured in `~/.claude/settings.json`, or after logging in to Z.ai in the ZCode CLI (`~/.zcode/v2/credentials.json`, decrypted locally with ZCode's own machine-keyed cipher).
+- DeepSeek: prepaid API credit balance when `DEEPSEEK_API_KEY` is set.
+- MiniMax: Token Plan 5-hour and weekly usage with a Subscription Key, or pay-as-you-go balance with a standard API key.
+- MiMo: Token Plan usage after signing in to the MiMo console from its card. Its API key alone cannot read usage.
 - Providers that are not installed or signed in on the device are hidden automatically.
+- When an API-key provider (DeepSeek or MiniMax) cannot find a key in the environment, its card shows an inline field to paste one. Keys entered here are stored in the local settings file on this device and never uploaded.
 - Turn individual providers on or off from **Providers** in the dashboard/popup or the tray's **Visible providers** menu. Disabled providers are not queried, pinged, or alerted, and the preference is saved locally.
+- **Disconnect** on a provider card stops monitoring it and removes any API key or web sign-in saved by Quota Window. Re-enable it from **Providers** to connect again. Credentials managed by a separate CLI or environment variable remain with that source.
 - Tokens: today's Codex account tokens plus lifetime and peak-day totals; Claude Code tokens processed today in local session history (input, output, and cache tokens).
 - A live countdown to each reset, manual refresh, and automatic refresh every 3 minutes.
 - Compact window controls for minimizing the widget into the menu bar/system tray and pinning it always on top; the pin preference is remembered.
@@ -45,6 +50,8 @@ ANTHROPIC_ADMIN_KEY=... npm start
 GROQ_API_KEY=... npm start
 XAI_MANAGEMENT_KEY=... XAI_TEAM_ID=... npm start
 ZAI_API_KEY=... npm start
+DEEPSEEK_API_KEY=... npm start
+MINIMAX_API_KEY=... npm start
 ```
 
 ## Requirements
@@ -68,7 +75,7 @@ The current macOS release is built for Apple Silicon (M1 or newer).
 
 ### macOS DMG
 
-1. Open `releases/v0.1.2/Quota Window-0.1.2-arm64.dmg`.
+1. Open `releases/v0.2.4/Quota Window-0.2.4-arm64.dmg`.
 2. Drag **Quota Window** into **Applications**.
 3. Open **Quota Window** from Applications.
 
@@ -82,14 +89,14 @@ open "/Applications/Quota Window.app"
 You can also run the unpacked app directly:
 
 ```bash
-open "releases/v0.1.2/mac-arm64/Quota Window.app"
+open "releases/v0.2.4/mac-arm64/Quota Window.app"
 ```
 
-For the ZIP release, extract `Quota Window-0.1.2-arm64-mac.zip`, then open `Quota Window.app`.
+For the ZIP release, extract `Quota Window-0.2.4-arm64-mac.zip`, then open `Quota Window.app`.
 
 ### Windows
 
-After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.1.2/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
+After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.2.4/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
 
 ## Build installers
 
@@ -115,7 +122,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=true APPLE_KEYCHAIN_PROFILE=quota-window npm run dis
 
 `scripts/build-release.mjs` defaults `CSC_IDENTITY_AUTO_DISCOVERY` to `false` so contributors without certificates can still build unsigned artifacts; setting it to `true` enables signing, and `APPLE_KEYCHAIN_PROFILE` lets electron-builder submit the build to Apple's notary service (usually 2–15 minutes). `package.json` already configures the hardened runtime, Electron entitlements (`assets/entitlements.mac.plist`), and `notarize: true`.
 
-The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.1.2` is written to `releases/v0.1.2/`. Bumping the package version automatically creates a new release directory on the next build.
+The build script reads `version` from `package.json` and places every artifact in a matching version directory. For example, version `0.2.4` is written to `releases/v0.2.4/`. Bumping the package version automatically creates a new release directory on the next build.
 The shared `releases/README.md` contains user-facing installation and first-use steps, ready to attach alongside the installer files on GitHub Releases.
 
 Run the script directly when needed:

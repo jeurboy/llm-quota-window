@@ -77,6 +77,19 @@ const ZAI_API_KEY = process.env.ZAI_API_KEY || process.env.GLM_API_KEY || null;
 const ZAI_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit";
 const ZAI_SUBSCRIPTION_URL = "https://api.z.ai/api/biz/subscription/list";
 const ZAI_USAGE_PAGE_URL = "https://z.ai/manage-apikey/subscription";
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || null;
+const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
+const DEEPSEEK_USAGE_PAGE_URL = "https://platform.deepseek.com/usage";
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || null;
+const MINIMAX_BALANCE_URL = "https://api.minimax.chat/account/query_balance";
+const MINIMAX_TOKEN_PLAN_URL = "https://www.minimax.io/v1/token_plan/remains";
+const MINIMAX_USAGE_PAGE_URL = "https://platform.minimax.io/user-center/payment/balance";
+const MIMO_API_KEY = process.env.MIMO_API_KEY || null;
+const MIMO_TOKEN_PLAN_BASE = "https://token-plan-sgp.xiaomimimo.com";
+const MIMO_OPENAI_BASE = "https://api.xiaomimimo.com";
+const MIMO_MODELS_URL = `${MIMO_TOKEN_PLAN_BASE}/v1/models`;
+const MIMO_USAGE_PAGE_URL = "https://platform.xiaomimimo.com/#/console/plan-manage";
+const MIMO_CONSOLE_API_BASE = "https://platform.xiaomimimo.com/api/v1";
 
 function zaiSettingsPaths() {
   return [
@@ -210,6 +223,19 @@ module.exports = {
   ZAI_QUOTA_URL,
   ZAI_SUBSCRIPTION_URL,
   ZAI_USAGE_PAGE_URL,
+  DEEPSEEK_API_KEY,
+  DEEPSEEK_BALANCE_URL,
+  DEEPSEEK_USAGE_PAGE_URL,
+  MINIMAX_API_KEY,
+  MINIMAX_BALANCE_URL,
+  MINIMAX_TOKEN_PLAN_URL,
+  MINIMAX_USAGE_PAGE_URL,
+  MIMO_API_KEY,
+  MIMO_TOKEN_PLAN_BASE,
+  MIMO_OPENAI_BASE,
+  MIMO_MODELS_URL,
+  MIMO_USAGE_PAGE_URL,
+  MIMO_CONSOLE_API_BASE,
   zaiSettingsPaths,
   zcodeCredentialsPath,
   KIMI_CLIENT_ID,

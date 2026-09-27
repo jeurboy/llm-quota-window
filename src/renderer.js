@@ -8,6 +8,7 @@ const minimizeButton = document.querySelector("#minimize-button");
 const providersButton = document.querySelector("#providers-button");
 const providersPanel = document.querySelector("#providers-panel");
 const providerToggles = document.querySelector("#provider-toggles");
+const apiKeyInputs = document.querySelector("#api-key-inputs");
 const closeProvidersButton = document.querySelector("#close-providers-button");
 const summaryText = document.querySelector("#summary-text");
 const lastUpdated = document.querySelector("#last-updated");
@@ -23,6 +24,7 @@ let colorTheme = "dark";
 
 function renderProviderSettings(settings) {
   providerToggles.replaceChildren();
+  apiKeyInputs.replaceChildren();
   for (const provider of settings) {
     const label = document.createElement("label");
     label.className = "provider-toggle";
@@ -43,7 +45,85 @@ function renderProviderSettings(settings) {
     name.textContent = provider.label;
     label.append(checkbox, name);
     providerToggles.append(label);
+
+    if (provider.usesApiKey) {
+      apiKeyInputs.append(renderApiKeyRow(provider));
+    }
   }
+}
+
+function renderApiKeyRow(provider) {
+  const row = document.createElement("div");
+  row.className = "api-key-row";
+  const label = document.createElement("label");
+  label.className = "api-key-row-label";
+  label.textContent = provider.label;
+  const input = document.createElement("input");
+  input.type = "password";
+  input.className = "api-key-row-input";
+  input.placeholder = provider.apiKeySet
+    ? "•••••••• (saved)"
+    : provider.keyFormat
+      ? `Not set — e.g. ${provider.keyFormat}`
+      : "Not set — uses env var";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "api-key-row-save";
+  save.textContent = "Save";
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "api-key-row-clear";
+  clear.textContent = "Clear";
+  clear.title = "Remove the stored key and fall back to the environment variable";
+
+  const status = document.createElement("span");
+  status.className = "api-key-row-status";
+
+  save.addEventListener("click", async () => {
+    const value = input.value.trim();
+    if (!value) {
+      status.textContent = "Enter a key first.";
+      return;
+    }
+    save.disabled = true;
+    save.textContent = "Saving…";
+    try {
+      await window.quotaWindow.setApiKey(provider.provider, value);
+      input.value = "";
+      input.placeholder = "•••••••• (saved)";
+      status.textContent = "Saved.";
+      setTimeout(() => { status.textContent = ""; }, 2000);
+    } catch (error) {
+      status.textContent = error.message || "Could not save.";
+    } finally {
+      save.disabled = false;
+      save.textContent = "Save";
+    }
+  });
+
+  clear.addEventListener("click", async () => {
+    clear.disabled = true;
+    try {
+      await window.quotaWindow.setApiKey(provider.provider, "");
+      input.value = "";
+      input.placeholder = "Not set — uses env var";
+      status.textContent = "Cleared.";
+      setTimeout(() => { status.textContent = ""; }, 2000);
+    } catch (error) {
+      status.textContent = error.message || "Could not clear.";
+    } finally {
+      clear.disabled = false;
+    }
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") save.click();
+  });
+
+  row.append(label, input, save, clear, status);
+  return row;
 }
 
 function toggleProvidersPanel(show = providersPanel.hidden) {
@@ -151,6 +231,12 @@ function paceLevel(remaining, paceRemaining) {
   return overBudget <= 15 ? "warning" : "critical";
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]);
+}
+
 function windowMarkup(window) {
   const used = Math.round(window.usedPercent);
   const remaining = Math.round(remainingPercent(window));
@@ -163,7 +249,7 @@ function windowMarkup(window) {
         <div class="ring-content"><strong>${remaining}%</strong><span>left</span></div>
       </div>
       <div class="window-copy">
-        <h2>${window.name}</h2>
+        <h2>${escapeHtml(window.name)}</h2>
         <p>${used}% used${window.durationMinutes ? ` · ${window.durationMinutes >= 1440 ? `${Math.round(window.durationMinutes / 1440)}-day` : `${window.durationMinutes / 60}-hour`} window` : ""}</p>
         <p class="reset ${status}" data-reset="${window.resetsAt || ""}">${resetLabel(window.resetsAt)}</p>
       </div>
@@ -188,22 +274,115 @@ function render(providers) {
     const card = template.content.firstElementChild.cloneNode(true);
     card.classList.toggle("is-offline", !provider.connected);
     card.querySelector(".provider-name").textContent = provider.label;
-    card.querySelector(".plan").textContent = provider.plan ? `${provider.plan} plan` : provider.connected ? "Signed in" : "Not connected";
+    card.querySelector(".plan").textContent = provider.plan
+      ? /plan$/i.test(provider.plan) ? provider.plan : `${provider.plan} plan`
+      : provider.connected ? "Signed in" : "Not connected";
     const state = card.querySelector(".state");
     state.textContent = provider.retrying ? "RETRYING" : provider.connected ? "LIVE" : "ACTION NEEDED";
     state.classList.toggle("offline", !provider.connected && !provider.retrying);
     state.classList.toggle("retrying", Boolean(provider.retrying));
-    card.querySelector(".windows").innerHTML = provider.windows.map(windowMarkup).join("") || "<p class=\"empty\">No quota windows were returned by this account.</p>";
+    card.querySelector(".windows").innerHTML = provider.windows.map(windowMarkup).join("") ||
+      (provider.needsWebLogin ? "<p class=\"empty\">Sign in to see your MiMo usage.</p>" : "<p class=\"empty\">No quota windows were returned by this account.</p>");
     const error = card.querySelector(".error");
     if (provider.error) { error.hidden = false; error.textContent = provider.error; }
+    if (provider.needsApiKey) renderApiKeyInput(card, provider);
     const tokenUsage = card.querySelector(".token-usage");
     if (provider.tokenUsage) { tokenUsage.hidden = false; tokenUsage.innerHTML = tokenMarkup(provider.tokenUsage); }
     const credits = card.querySelector(".credits");
     credits.textContent = provider.creditSummary || (provider.provider === "codex" && provider.credits ? `${provider.credits} reset credits available` : "");
     if (provider.provider === "kimi") renderKimiWebControls(card, provider);
+    if (provider.provider === "mimo") renderMimoWebControls(card, provider);
+    renderDisconnectControl(card, provider);
     card.querySelector(".usage-link").addEventListener("click", () => window.quotaWindow.openUsage(provider.provider));
     cards.append(card);
   }
+}
+
+function renderMimoWebControls(card, provider) {
+  if (!provider.needsWebLogin) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "usage-link";
+  button.textContent = "Sign in to MiMo";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await window.quotaWindow.mimoOpenLogin();
+    } catch {
+      button.disabled = false;
+      return;
+    }
+    button.disabled = false;
+  });
+  card.querySelector(".action-buttons").append(button);
+}
+
+function renderDisconnectControl(card, provider) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "usage-link disconnect-link";
+  button.textContent = "Disconnect";
+  button.setAttribute("aria-label", `Disconnect ${provider.label} from Quota Window`);
+  button.title = "Stop monitoring here and remove any key or web sign-in saved by Quota Window. Re-enable in Providers.";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      render(await window.quotaWindow.disconnectProvider(provider.provider));
+      summaryText.textContent = `${provider.label} disconnected. Re-enable it in Providers.`;
+    } catch (error) {
+      summaryText.textContent = error.message || `Could not disconnect ${provider.label}.`;
+      button.disabled = false;
+    }
+  });
+  card.querySelector(".action-buttons").append(button);
+}
+
+// Renders an inline API-key entry form on the provider card when the provider
+// is waiting for the user to paste a key it cannot find elsewhere. Saving
+// stores the key on this device and triggers a refresh to apply it.
+function renderApiKeyInput(card, provider) {
+  const panel = document.createElement("div");
+  panel.className = "api-key-panel";
+  const label = document.createElement("label");
+  label.className = "api-key-label";
+  label.textContent = `Paste your ${provider.label} API key — stored locally on this device, never uploaded.`;
+  const row = document.createElement("div");
+  row.className = "api-key-row";
+  const input = document.createElement("input");
+  input.type = "password";
+  input.className = "api-key-input";
+  input.placeholder = provider.keyFormat || "sk-...";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "api-key-save";
+  save.textContent = "Save key";
+  const status = document.createElement("p");
+  status.className = "api-key-status";
+  save.addEventListener("click", async () => {
+    const value = input.value.trim();
+    if (!value) {
+      status.textContent = "Enter a key first.";
+      return;
+    }
+    save.disabled = true;
+    save.textContent = "Saving…";
+    try {
+      await window.quotaWindow.setApiKey(provider.provider, value);
+      status.textContent = "Saved. Refreshing…";
+    } catch (error) {
+      status.textContent = error.message || "Could not save the key.";
+      save.disabled = false;
+      save.textContent = "Save key";
+    }
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") save.click();
+  });
+  row.append(input, save);
+  panel.append(label, row, status);
+  card.querySelector(".error").after(panel);
 }
 
 // Monthly membership quota needs a separate kimi.com web sign-in (QR scan
@@ -360,7 +539,6 @@ window.quotaWindow.onStartOnLoginChanged((enabled) => { startOnLoginCheckbox.che
 window.quotaWindow.onUpdateStateChanged(renderUpdateState);
 window.quotaWindow.onProviderSettingsChanged((settings) => {
   renderProviderSettings(settings);
-  refresh(true);
 });
 setInterval(updateCountdowns, 1000);
 window.quotaWindow.setAlwaysOnTop(alwaysOnTop).then(renderPinState);

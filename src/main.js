@@ -1,12 +1,13 @@
 // Quota Window app shell: windows, tray, settings, alerts, updates, IPC, and
 // the orchestration layer over the per-provider modules in src/providers/.
 const { app, BrowserWindow, ipcMain, shell, screen, Menu, Tray, nativeImage, nativeTheme, Notification } = require("electron");
-const { readFileSync, writeFileSync } = require("fs");
 const { join } = require("path");
+const { readSettingsFile, updateSettingsFile } = require("./settings-file");
 const { singleFlight } = require("./single-flight");
 const { commandError } = require("./cli");
 const { subscribe } = require("./bus");
-const { quotaProviders, providerUsagePages, kimi } = require("./providers");
+const { quotaProviders, providerUsagePages, kimi, mimo } = require("./providers");
+const { getApiKey, setApiKey } = require("./api-keys");
 const {
   REQUEST_TIMEOUT_MS,
   QUOTA_CACHE_MS,
@@ -24,6 +25,7 @@ const {
 
 let mainWindow = null;
 let popupWindow = null;
+let mimoLoginWindow = null;
 let tray = null;
 let trayMenu = null;
 let isQuitting = false;
@@ -86,6 +88,30 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+}
+
+function openMimoLogin() {
+  if (mimoLoginWindow && !mimoLoginWindow.isDestroyed()) {
+    mimoLoginWindow.focus();
+    return;
+  }
+  mimoLoginWindow = new BrowserWindow({
+    width: 940,
+    height: 720,
+    title: "Sign in to MiMo",
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    webPreferences: {
+      partition: mimo.SESSION_PARTITION,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  mimoLoginWindow.loadURL(mimo.usagePageUrl);
+  mimoLoginWindow.on("closed", () => {
+    mimoLoginWindow = null;
+    refreshAndBroadcast(true).catch(() => {});
+  });
 }
 
 function sendToWindows(channel, payload) {
@@ -242,7 +268,7 @@ function autoPingSettingsPath() {
 
 function loadSettings() {
   try {
-    const settings = JSON.parse(readFileSync(autoPingSettingsPath(), "utf8"));
+    const settings = readSettingsFile(autoPingSettingsPath());
     return {
       autoPingIntervalMinutes: AUTO_PING_INTERVALS_MINUTES.includes(settings.autoPingIntervalMinutes)
         ? settings.autoPingIntervalMinutes
@@ -256,12 +282,13 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    writeFileSync(autoPingSettingsPath(), JSON.stringify({
+    updateSettingsFile(autoPingSettingsPath(), {
       autoPingIntervalMinutes,
       disabledProviders: [...disabledProviders],
-    }, null, 2));
+    });
+    return true;
   } catch {
-    // Preferences are optional; changes still apply for this app session.
+    return false;
   }
 }
 
@@ -282,23 +309,46 @@ function providerEnabled(provider) {
 
 async function setProviderEnabled(provider, enabled) {
   if (!quotaProviders.some((entry) => entry.provider === provider)) return providerEnabled(provider);
+  const wasEnabled = providerEnabled(provider);
   if (enabled) disabledProviders.delete(provider);
-  else {
-    disabledProviders.add(provider);
+  else disabledProviders.add(provider);
+  if (!saveSettings()) {
+    if (wasEnabled) disabledProviders.delete(provider);
+    else disabledProviders.add(provider);
+    throw new Error("Could not save the provider setting.");
+  }
+  if (!enabled) {
     latestQuotas = latestQuotas.filter((entry) => entry.provider !== provider);
     for (const key of quotaAlertState.keys()) {
       if (key.startsWith(`${provider}:`)) quotaAlertState.delete(key);
     }
   }
-  saveSettings();
   updateTrayMenu();
   const providers = await refreshAndBroadcast(true);
   sendToWindows("app:providerSettingsChanged", providerSettings());
   return { enabled: providerEnabled(provider), providers };
 }
 
+async function disconnectProvider(provider) {
+  if (!quotaProviders.some((entry) => entry.provider === provider)) throw new Error("Unknown provider.");
+  if (provider === "mimo") {
+    if (mimoLoginWindow && !mimoLoginWindow.isDestroyed()) mimoLoginWindow.close();
+    await mimo.signOut();
+  }
+  if (provider === "kimi") await kimi.signOutWeb();
+  if (getApiKey(provider)) setApiKey(provider, "");
+  return (await setProviderEnabled(provider, false)).providers;
+}
+
 function providerSettings() {
-  return quotaProviders.map(({ provider, label }) => ({ provider, label, enabled: providerEnabled(provider) }));
+  return quotaProviders.map(({ provider, label, storesApiKey, keyFormat }) => ({
+    provider,
+    label,
+    enabled: providerEnabled(provider),
+    usesApiKey: Boolean(storesApiKey),
+    apiKeySet: storesApiKey ? Boolean(getApiKey(provider)) : false,
+    keyFormat: keyFormat || null,
+  }));
 }
 
 function showProviderMenu(window) {
@@ -441,14 +491,20 @@ async function loadQuotas() {
   const providers = await Promise.allSettled(enabledProviders.map((entry) => entry.load()));
   latestQuotas = providers.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
-    if (result.reason?.notDetected) return null;
+    const reason = result.reason;
+    // A "not detected" error normally hides the provider; but when the app
+    // knows the user can fix it by pasting an API key, keep the card visible
+    // so the renderer can show an inline key entry field.
+    if (reason?.notDetected && !reason?.needsApiKey) return null;
     return {
       provider: enabledProviders[index].provider,
       label: enabledProviders[index].label,
       connected: false,
-      retrying: /temporarily rate limited/i.test(result.reason?.message || ""),
+      retrying: /temporarily rate limited/i.test(reason?.message || ""),
       windows: [],
-      error: result.reason?.message || "Could not load this provider.",
+      error: reason?.message || "Could not load this provider.",
+      needsApiKey: Boolean(reason?.needsApiKey),
+      apiKeyProvider: reason?.apiKeyProvider || null,
       updatedAt: new Date().toISOString(),
     };
   }).filter((provider) => provider && providerEnabled(provider.provider));
@@ -524,6 +580,17 @@ ipcMain.handle("app:showDashboard", () => showMainWindow());
 ipcMain.handle("app:hidePopup", () => popupWindow?.hide());
 ipcMain.handle("app:getProviderSettings", () => providerSettings());
 ipcMain.handle("app:setProviderEnabled", (_, provider, enabled) => setProviderEnabled(provider, Boolean(enabled)));
+ipcMain.handle("app:disconnectProvider", (_, provider) => disconnectProvider(provider));
+ipcMain.handle("app:setApiKey", async (_, provider, key) => {
+  if (!quotaProviders.some((entry) => entry.provider === provider && entry.storesApiKey)) {
+    throw new Error("This provider does not accept a saved API key.");
+  }
+  setApiKey(provider, key);
+  if (key && String(key).trim() && !providerEnabled(provider)) await setProviderEnabled(provider, true);
+  else await refreshAndBroadcast(true);
+  return { saved: Boolean(key && String(key).trim()) };
+});
+ipcMain.handle("mimo:openLogin", () => openMimoLogin());
 ipcMain.handle("kimi:startWebLogin", () => kimi.startWebLogin());
 ipcMain.handle("kimi:cancelWebLogin", () => kimi.stopWebLogin());
 ipcMain.handle("kimi:signOutWeb", async () => {

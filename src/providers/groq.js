@@ -32,4 +32,4 @@ async function load() {
   };
 }
 
-module.exports = { provider: "groq", label: "Groq", usagePageUrl: GROQ_USAGE_PAGE_URL, load };
+module.exports = { provider: "groq", label: "Groq", usagePageUrl: GROQ_USAGE_PAGE_URL, usesApiKey: true, load };

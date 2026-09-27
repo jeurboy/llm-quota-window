@@ -36,4 +36,4 @@ async function load() {
   };
 }
 
-module.exports = { provider: "anthropic-api", label: "Anthropic API", usagePageUrl: ANTHROPIC_API_USAGE_PAGE_URL, load };
+module.exports = { provider: "anthropic-api", label: "Anthropic API", usagePageUrl: ANTHROPIC_API_USAGE_PAGE_URL, usesApiKey: true, load };

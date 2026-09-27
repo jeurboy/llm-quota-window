@@ -31,4 +31,4 @@ async function load() {
   };
 }
 
-module.exports = { provider: "openrouter", label: "OpenRouter", usagePageUrl: OPENROUTER_USAGE_PAGE_URL, load };
+module.exports = { provider: "openrouter", label: "OpenRouter", usagePageUrl: OPENROUTER_USAGE_PAGE_URL, usesApiKey: true, load };

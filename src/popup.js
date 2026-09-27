@@ -133,7 +133,6 @@ providersButton.addEventListener("click", () => window.quotaWindow.showProviderM
 window.quotaWindow.onQuotaUpdated(renderProviders);
 window.quotaWindow.onThemeChanged(renderTheme);
 window.quotaWindow.onUpdateStateChanged(renderUpdate);
-window.quotaWindow.onProviderSettingsChanged(() => refresh(true));
 window.quotaWindow.setTheme(themePreference).then(renderTheme);
 window.quotaWindow.getVersion().then((version) => { popupVersion.textContent = `v${version}`; });
 refresh();

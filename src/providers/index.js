@@ -12,6 +12,9 @@ const anthropicApi = require("./anthropic-api");
 const groq = require("./groq");
 const { xaiApi, supergrok } = require("./xai");
 const zai = require("./zai");
+const deepseek = require("./deepseek");
+const minimax = require("./minimax");
+const mimo = require("./mimo");
 
 const quotaProviders = [
   claude,
@@ -28,10 +31,13 @@ const quotaProviders = [
   xaiApi,
   supergrok,
   zai,
+  deepseek,
+  minimax,
+  mimo,
 ];
 
 const providerUsagePages = Object.fromEntries(
   quotaProviders.map(({ provider, usagePageUrl }) => [provider, usagePageUrl]),
 );
 
-module.exports = { quotaProviders, providerUsagePages, kimi };
+module.exports = { quotaProviders, providerUsagePages, kimi, mimo };

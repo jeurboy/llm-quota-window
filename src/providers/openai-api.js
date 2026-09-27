@@ -34,4 +34,4 @@ async function load() {
   };
 }
 
-module.exports = { provider: "openai-api", label: "OpenAI API", usagePageUrl: OPENAI_API_USAGE_PAGE_URL, load };
+module.exports = { provider: "openai-api", label: "OpenAI API", usagePageUrl: OPENAI_API_USAGE_PAGE_URL, usesApiKey: true, load };
