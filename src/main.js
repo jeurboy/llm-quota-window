@@ -188,6 +188,7 @@ function quotaMenuLabel(provider) {
 
 function quotaLimitType(window) {
   if (window.durationMinutes === 300 || /5-hour|session/i.test(window.name)) return "day";
+  if ((window.durationMinutes || 0) >= 43_200 || /month/i.test(window.name)) return "month";
   if ((window.durationMinutes || 0) >= 1_440 || /week|7-day/i.test(window.name)) return "week";
   return "window";
 }
@@ -213,11 +214,12 @@ function checkQuotaAlerts(providers) {
 
       const limitType = quotaLimitType(window);
       const critical = (limitType === "day" && previous >= 20 && remaining < 20)
-        || (limitType === "week" && previous >= 10 && remaining < 10);
+        || (limitType === "week" && previous >= 10 && remaining < 10)
+        || (limitType === "month" && previous >= 5 && remaining < 5);
       const crossedTenPercent = Math.ceil(previous / 10) > Math.ceil(remaining / 10);
       if (!critical && !crossedTenPercent) continue;
 
-      const limitLabel = limitType === "day" ? "Daily/session limit" : limitType === "week" ? "Weekly limit" : "Quota window";
+      const limitLabel = limitType === "day" ? "Daily/session limit" : limitType === "week" ? "Weekly limit" : limitType === "month" ? "Monthly limit" : "Quota window";
       const urgency = critical ? "Low quota warning" : "Quota update";
       sendQuotaAlert(
         `${urgency}: ${provider.label}`,

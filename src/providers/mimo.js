@@ -22,6 +22,13 @@ function parseUsage(payload, detail) {
   const items = payload.data?.monthUsage?.items;
   if (!Array.isArray(items) || !items.length) return null;
   const periodEnd = detail?.code === 0 ? toIso(detail.data?.currentPeriodEnd) : null;
+  const periodStart = detail?.code === 0 ? toIso(detail.data?.currentPeriodStart) : null;
+  // Token Plan refills monthly; use the console's own period when it reports
+  // one, otherwise assume a 30-day month so the window length is usable.
+  const periodMs = periodStart && periodEnd
+    ? new Date(periodEnd).getTime() - new Date(periodStart).getTime()
+    : 0;
+  const durationMinutes = periodMs > 0 ? Math.round(periodMs / 60_000) : 43_200;
   const windows = items.flatMap((item) => {
     const used = Number(item.used);
     const limit = Number(item.limit);
@@ -33,7 +40,7 @@ function parseUsage(payload, detail) {
     return [{
       name: item.name || "Token Plan · monthly",
       usedPercent: Math.max(0, Math.min(100, usedPercent)),
-      durationMinutes: null,
+      durationMinutes,
       resetsAt: periodEnd,
     }];
   });

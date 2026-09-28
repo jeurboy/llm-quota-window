@@ -48,9 +48,20 @@ test("MiMo maps console usage to the current plan window", () => {
   assert.deepEqual(parseUsage(usage, detail), [{
     name: "Token Plan",
     usedPercent: 25,
-    durationMinutes: null,
+    durationMinutes: 43_200,
     resetsAt: "2026-10-01T00:00:00.000Z",
   }]);
   assert.equal(parseUsage({ code: 401 }, detail), null);
   assert.equal(parseUsage({ code: 0, data: { monthUsage: { items: [] } } }, detail), null);
+});
+
+test("MiMo sizes the plan window from the reported period when available", () => {
+  const usage = { code: 0, data: { monthUsage: { items: [
+    { name: "Token Plan", used: 25, limit: 100, percent: 25 },
+  ] } } };
+  const detail = { code: 0, data: {
+    currentPeriodStart: "2026-08-01 00:00:00",
+    currentPeriodEnd: "2026-09-01 00:00:00",
+  } };
+  assert.equal(parseUsage(usage, detail)[0].durationMinutes, 44_640);
 });

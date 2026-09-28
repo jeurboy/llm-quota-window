@@ -210,13 +210,15 @@ function tokenMarkup(tokenUsage) {
 // How much quota should remain under an hourly-stepped time budget: every
 // window grants each hour's share up front (a weekly window budgets 100/168
 // per hour, a 5-hour window 100/5). Null when the window has no usable
-// duration or reset time. Doubles as the green/red divider position.
+// duration or reset time. Doubles as the green/red divider position. A reset
+// further out than the window length (estimated duration, clock skew) counts
+// as a just-opened budget, so the marker stays visible at 100%.
 function paceRemainingPercent(window) {
   const totalMs = Number(window.durationMinutes) * 60_000;
   const remainingMs = window.resetsAt ? new Date(window.resetsAt).getTime() - Date.now() : 0;
-  if (!totalMs || remainingMs <= 0 || remainingMs >= totalMs) return null;
+  if (!totalMs || remainingMs <= 0) return null;
   const unitMs = 3_600_000;
-  const budgetMs = Math.min(totalMs, Math.ceil((totalMs - remainingMs) / unitMs) * unitMs);
+  const budgetMs = Math.min(totalMs, Math.ceil(Math.max(0, totalMs - remainingMs) / unitMs) * unitMs);
   return Math.max(0, Math.min(100, 100 * (1 - budgetMs / totalMs)));
 }
 
