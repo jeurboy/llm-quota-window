@@ -253,9 +253,49 @@ function windowMarkup(window) {
       <div class="window-copy">
         <h2>${escapeHtml(window.name)}</h2>
         <p>${used}% used${window.durationMinutes ? ` · ${window.durationMinutes >= 1440 ? `${Math.round(window.durationMinutes / 1440)}-day` : `${window.durationMinutes / 60}-hour`} window` : ""}</p>
-        <p class="reset ${status}" data-reset="${window.resetsAt || ""}">${resetLabel(window.resetsAt)}</p>
       </div>
+      <p class="reset ${status}" data-reset="${window.resetsAt || ""}">${resetLabel(window.resetsAt)}</p>
     </section>`;
+}
+
+// Bento tile size per provider: a lone window gets a compact single-column
+// tile, three windows a wide row, and four or more a tall double tile whose
+// windows sit in a 2×2 grid. Anything with extra content (token usage, errors,
+// key entry, Kimi's web sign-in) needs at least the medium tile.
+function tileSize(provider) {
+  const count = provider.windows.length;
+  if (count >= 4) return "bento-xl";
+  if (count === 3) return "bento-l";
+  const hasExtras = provider.tokenUsage || provider.error || provider.needsApiKey || provider.provider === "kimi";
+  return count <= 1 && !hasExtras ? "bento-s" : "bento-m";
+}
+
+// Summary tile closing the bento grid: the tightest window across every
+// provider and the next reset to happen.
+function overviewCard(providers) {
+  const windows = providers.flatMap((provider) => provider.windows.map((window) => ({ provider, window })));
+  if (!windows.length) return null;
+  const tightest = windows.reduce((low, entry) => remainingPercent(entry.window) < remainingPercent(low.window) ? entry : low);
+  const upcoming = windows
+    .filter((entry) => entry.window.resetsAt && new Date(entry.window.resetsAt).getTime() > Date.now())
+    .sort((a, b) => new Date(a.window.resetsAt) - new Date(b.window.resetsAt))[0];
+  const remaining = Math.round(remainingPercent(tightest.window));
+  const status = paceLevel(remaining, paceRemainingPercent(tightest.window));
+  const providerCount = new Set(windows.map((entry) => entry.provider.provider)).size;
+  const card = document.createElement("article");
+  card.className = "provider-card overview-card bento-s";
+  card.innerHTML = `
+    <p class="overview-eyebrow">AT A GLANCE</p>
+    <div class="overview-stat ${status}"><strong>${remaining}%</strong><span>lowest left</span></div>
+    <p class="overview-label">${escapeHtml(tightest.provider.label)} · ${escapeHtml(tightest.window.name)}</p>
+    ${upcoming ? `
+    <div class="overview-next">
+      <span>NEXT RESET</span>
+      <p class="overview-label">${escapeHtml(upcoming.provider.label)} · ${escapeHtml(upcoming.window.name)}</p>
+      <p class="reset" data-reset="${upcoming.window.resetsAt}">${resetLabel(upcoming.window.resetsAt)}</p>
+    </div>` : ""}
+    <p class="overview-foot">${windows.length} window${windows.length === 1 ? "" : "s"} · ${providerCount} provider${providerCount === 1 ? "" : "s"}</p>`;
+  return card;
 }
 
 function render(providers) {
@@ -274,6 +314,7 @@ function render(providers) {
 
   for (const provider of providers) {
     const card = template.content.firstElementChild.cloneNode(true);
+    card.classList.add(tileSize(provider));
     card.classList.toggle("is-offline", !provider.connected);
     card.querySelector(".provider-name").textContent = provider.label;
     card.querySelector(".plan").textContent = provider.plan
@@ -298,6 +339,8 @@ function render(providers) {
     card.querySelector(".usage-link").addEventListener("click", () => window.quotaWindow.openUsage(provider.provider));
     cards.append(card);
   }
+  const overview = overviewCard(providers);
+  if (overview) cards.append(overview);
 }
 
 function renderMimoWebControls(card, provider) {
