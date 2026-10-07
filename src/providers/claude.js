@@ -18,6 +18,17 @@ const { localDateKey } = require("../format");
 
 // Backs off while Anthropic's usage endpoint reports 429.
 let claudeRetryAt = 0;
+let lastGood = null;
+
+let cliVersion = null;
+function claudeCliVersion() {
+  if (cliVersion) return cliVersion;
+  try {
+    const out = require("child_process").execFileSync("claude", ["--version"], { encoding: "utf8", timeout: 5_000 });
+    cliVersion = out.match(/\d+\.\d+\.\d+/)?.[0] || "2.1.0";
+  } catch { cliVersion = "2.1.0"; }
+  return cliVersion;
+}
 
 function startOfLocalDay() {
   const date = new Date();
@@ -105,6 +116,7 @@ function toClaudeWindow(item, fallbackName) {
 async function load() {
   if (!cliInstalled("claude")) throw notDetectedError("Claude Code CLI is not installed on this device.");
   if (Date.now() < claudeRetryAt) {
+    if (lastGood) return { ...lastGood, tokenUsage: claudeLocalTokenUsage() };
     const remainingSeconds = Math.ceil((claudeRetryAt - Date.now()) / 1_000);
     throw new Error(`Claude usage is temporarily rate limited. Retrying automatically in ${remainingSeconds}s.`);
   }
@@ -116,7 +128,12 @@ async function load() {
     throw new Error("Could not read Claude Code's local sign-in. Run `claude auth login` and refresh.");
   }
   const response = await fetch(CLAUDE_USAGE_URL, {
-    headers: { Authorization: `Bearer ${credentials.accessToken}`, "anthropic-version": CLAUDE_API_VERSION },
+    headers: {
+      Authorization: `Bearer ${credentials.accessToken}`,
+      "anthropic-version": CLAUDE_API_VERSION,
+      "anthropic-beta": "oauth-2025-04-20",
+      "User-Agent": `claude-code/${claudeCliVersion()}`,
+    },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
@@ -124,6 +141,7 @@ async function load() {
       const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") || "", 10);
       const waitSeconds = Number.isFinite(retryAfterSeconds) ? Math.max(15, retryAfterSeconds) : 60;
       claudeRetryAt = Date.now() + (waitSeconds * 1_000);
+      if (lastGood) return { ...lastGood, tokenUsage: claudeLocalTokenUsage() };
       throw new Error(`Claude usage is temporarily rate limited. Retrying automatically in ${waitSeconds}s.`);
     }
     throw new Error(response.status === 401
@@ -139,7 +157,7 @@ async function load() {
     item.kind === "weekly_scoped"
     && item.scope?.model?.display_name?.toLowerCase() === "fable");
 
-  return {
+  lastGood = {
     provider: "claude",
     label: "Claude",
     connected: true,
@@ -153,6 +171,7 @@ async function load() {
     tokenUsage: claudeLocalTokenUsage(),
     updatedAt: new Date().toISOString(),
   };
+  return lastGood;
 }
 
 function ping() {
