@@ -15,6 +15,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - OpenAI API: organization month-to-date costs when `OPENAI_ADMIN_KEY` is set.
 - Anthropic API: organization month-to-date token usage when `ANTHROPIC_ADMIN_KEY` is set.
 - Groq: current API request-rate allowance when `GROQ_API_KEY` is set.
+- Muse (Meta): current API request-rate allowance when `MUSE_API_KEY` is set.
 - xAI API: prepaid credit balance when `XAI_MANAGEMENT_KEY` and `XAI_TEAM_ID` are set.
 - SuperGrok: subscription usage from a local `grok login` session; no browser-cookie import is required.
 - Z.ai: GLM Coding Plan 5-hour, weekly, and web-search quotas when `ZAI_API_KEY` is set (`GLM_API_KEY` is also accepted for compatibility), when Z.ai is configured in `~/.claude/settings.json`, or after logging in to Z.ai in the ZCode CLI (`~/.zcode/v2/credentials.json`, decrypted locally with ZCode's own machine-keyed cipher).
@@ -48,6 +49,7 @@ OPENROUTER_MANAGEMENT_KEY=... npm start
 OPENAI_ADMIN_KEY=... npm start
 ANTHROPIC_ADMIN_KEY=... npm start
 GROQ_API_KEY=... npm start
+MUSE_API_KEY=... npm start
 XAI_MANAGEMENT_KEY=... XAI_TEAM_ID=... npm start
 ZAI_API_KEY=... npm start
 DEEPSEEK_API_KEY=... npm start
@@ -75,7 +77,7 @@ The current macOS release is built for Apple Silicon (M1 or newer).
 
 ### macOS DMG
 
-1. Open `releases/v0.2.6/Quota Window-0.2.6-arm64.dmg`.
+1. Open `releases/v0.2.7/Quota Window-0.2.7-arm64.dmg`.
 2. Drag **Quota Window** into **Applications**.
 3. Open **Quota Window** from Applications.
 
@@ -89,14 +91,14 @@ open "/Applications/Quota Window.app"
 You can also run the unpacked app directly:
 
 ```bash
-open "releases/v0.2.6/mac-arm64/Quota Window.app"
+open "releases/v0.2.7/mac-arm64/Quota Window.app"
 ```
 
-For the ZIP release, extract `Quota Window-0.2.6-arm64-mac.zip`, then open `Quota Window.app`.
+For the ZIP release, extract `Quota Window-0.2.7-arm64-mac.zip`, then open `Quota Window.app`.
 
 ### Windows
 
-After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.2.6/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
+After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.2.7/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
 
 ## Build installers
 
