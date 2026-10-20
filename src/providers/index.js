@@ -10,6 +10,7 @@ const openrouter = require("./openrouter");
 const openaiApi = require("./openai-api");
 const anthropicApi = require("./anthropic-api");
 const groq = require("./groq");
+const muse = require("./muse");
 const { xaiApi, supergrok } = require("./xai");
 const zai = require("./zai");
 const deepseek = require("./deepseek");
@@ -28,6 +29,7 @@ const quotaProviders = [
   openaiApi,
   anthropicApi,
   groq,
+  muse,
   xaiApi,
   supergrok,
   zai,

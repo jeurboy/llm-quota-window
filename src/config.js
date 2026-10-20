@@ -67,6 +67,9 @@ const ANTHROPIC_API_USAGE_PAGE_URL = "https://console.anthropic.com/settings/usa
 const GROQ_API_KEY = process.env.GROQ_API_KEY || null;
 const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 const GROQ_USAGE_PAGE_URL = "https://console.groq.com/settings/limits";
+const MUSE_API_KEY = process.env.MUSE_API_KEY || null;
+const MUSE_MODELS_URL = "https://api.meta.ai/v1/models";
+const MUSE_USAGE_PAGE_URL = "https://dev.meta.ai";
 const XAI_MANAGEMENT_KEY = process.env.XAI_MANAGEMENT_KEY || null;
 const XAI_TEAM_ID = process.env.XAI_TEAM_ID || null;
 const XAI_MANAGEMENT_API_URL = "https://management-api.x.ai";
@@ -212,6 +215,9 @@ module.exports = {
   GROQ_API_KEY,
   GROQ_MODELS_URL,
   GROQ_USAGE_PAGE_URL,
+  MUSE_API_KEY,
+  MUSE_MODELS_URL,
+  MUSE_USAGE_PAGE_URL,
   XAI_MANAGEMENT_KEY,
   XAI_TEAM_ID,
   XAI_MANAGEMENT_API_URL,
