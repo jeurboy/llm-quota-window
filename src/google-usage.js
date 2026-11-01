@@ -8,6 +8,7 @@ function clampPercent(value) {
 
 function bucketTier(modelId) {
   const id = String(modelId).toLowerCase();
+  if (id.startsWith("chat_") || id.startsWith("tab_") || id.startsWith("claude") || id.startsWith("gpt-")) return null;
   if (id.includes("flash-lite")) return "flashLite";
   if (id.includes("flash")) return "flash";
   if (id.includes("pro")) return "pro";
@@ -29,9 +30,10 @@ function parseGoogleQuotaBuckets(payload) {
   const tiers = new Map();
   for (const bucket of buckets) {
     if (!bucket || typeof bucket.modelId !== "string" || !bucket.modelId) continue;
+    const tier = bucketTier(bucket.modelId);
+    if (!tier) continue;
     const fraction = Number(bucket.remainingFraction);
     const remainingFraction = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
-    const tier = bucketTier(bucket.modelId);
     const existing = tiers.get(tier);
     if (!existing || remainingFraction < existing.remainingFraction) {
       tiers.set(tier, {
@@ -50,6 +52,58 @@ function parseGoogleQuotaBuckets(payload) {
       usedPercent: clampPercent((1 - entry.remainingFraction) * 100),
       durationMinutes: 1_440,
       resetsAt: entry.resetsAt,
+    });
+  }
+  return windows;
+}
+
+function summaryWindowDurationMinutes(windowCode) {
+  const code = String(windowCode || "").toLowerCase();
+  if (code === "5h") return 300;
+  if (code === "daily" || code === "24h" || code === "1d") return 1_440;
+  if (code === "weekly" || code === "7d") return 10_080;
+  return null;
+}
+
+function summaryWindowSuffix(bucket) {
+  const code = String(bucket?.window || "").toLowerCase();
+  if (code === "5h") return "5-hour limit";
+  if (code === "daily" || code === "24h" || code === "1d") return "daily limit";
+  if (code === "weekly" || code === "7d") return "weekly limit";
+  return typeof bucket?.displayName === "string" && bucket.displayName ? bucket.displayName : "limit";
+}
+
+// Parses Antigravity's retrieveUserQuotaSummary response (groups + buckets).
+function parseGoogleQuotaSummary(payload) {
+  const windows = [];
+  const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+  for (const group of groups) {
+    const groupName = typeof group?.displayName === "string" ? group.displayName.trim() : "";
+    const buckets = Array.isArray(group?.buckets) ? group.buckets : [];
+    for (const bucket of buckets) {
+      if (!bucket || bucket.disabled) continue;
+      const fraction = Number(bucket.remainingFraction);
+      const remainingFraction = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
+      const suffix = summaryWindowSuffix(bucket);
+      const name = groupName ? `${groupName} (${suffix})` : suffix;
+      windows.push({
+        name,
+        usedPercent: clampPercent((1 - remainingFraction) * 100),
+        durationMinutes: summaryWindowDurationMinutes(bucket.window),
+        resetsAt: typeof bucket.resetTime === "string" ? bucket.resetTime : null,
+      });
+    }
+  }
+  const topBuckets = Array.isArray(payload?.buckets) ? payload.buckets : [];
+  for (const bucket of topBuckets) {
+    if (!bucket || bucket.disabled) continue;
+    const fraction = Number(bucket.remainingFraction);
+    const remainingFraction = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
+    windows.push({
+      name: summaryWindowSuffix(bucket),
+      usedPercent: clampPercent((1 - remainingFraction) * 100),
+      durationMinutes: summaryWindowDurationMinutes(bucket.window),
+      resetsAt: typeof bucket.resetTime === "string" ? bucket.resetTime : null,
     });
   }
   return windows;
@@ -100,4 +154,27 @@ function googleProjectId(loadCodeAssistResponse) {
   return typeof nested === "string" && nested.trim() ? nested.trim() : null;
 }
 
-module.exports = { parseGoogleQuotaBuckets, parseAntigravityModels, googlePlanLabel, googleProjectId };
+// Extracts public installed-app OAuth client pairs (clientId + clientSecret)
+// embedded in the local Antigravity (`agy`) or Gemini CLI executable at runtime,
+// keeping OAuth client strings out of this repository (same pattern as Kimi).
+function extractGoogleOAuthClients(buffer) {
+  if (!buffer) return [];
+  const text = buffer.toString("latin1");
+  const ids = [...new Set(text.match(/[0-9]{10,15}-[a-z0-9]{20,40}\.apps\.googleusercontent\.com/g) || [])];
+  const secrets = [...new Set(text.match(/GOCSPX-[A-Za-z0-9_-]{20,36}/g) || [])];
+  const pairs = [];
+  const count = Math.min(ids.length, secrets.length);
+  for (let index = 0; index < count; index += 1) {
+    pairs.push({ clientId: ids[index], clientSecret: secrets[index] });
+  }
+  return pairs;
+}
+
+module.exports = {
+  parseGoogleQuotaBuckets,
+  parseGoogleQuotaSummary,
+  parseAntigravityModels,
+  googlePlanLabel,
+  googleProjectId,
+  extractGoogleOAuthClients,
+};

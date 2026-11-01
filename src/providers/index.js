@@ -4,7 +4,7 @@ const claude = require("./claude");
 const codex = require("./codex");
 const kimi = require("./kimi");
 const cursor = require("./cursor");
-const { gemini, antigravity } = require("./google");
+const { gemini } = require("./google");
 const copilot = require("./copilot");
 const openrouter = require("./openrouter");
 const openaiApi = require("./openai-api");
@@ -23,7 +23,6 @@ const quotaProviders = [
   kimi,
   cursor,
   gemini,
-  antigravity,
   copilot,
   openrouter,
   openaiApi,

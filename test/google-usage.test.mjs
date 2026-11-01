@@ -5,10 +5,12 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   parseGoogleQuotaBuckets,
+  parseGoogleQuotaSummary,
   parseAntigravityModels,
   googlePlanLabel,
   googleProjectId,
 } = require("../src/google-usage.js");
+const { parseKeyringPayload } = require("../src/providers/google.js");
 
 test("groups quota buckets into tier windows keeping the most-used model", () => {
   const windows = parseGoogleQuotaBuckets({
@@ -61,4 +63,43 @@ test("resolves plan labels and project ids from loadCodeAssist responses", () =>
   assert.equal(googleProjectId({ cloudaicompanionProject: "my-project" }), "my-project");
   assert.equal(googleProjectId({ cloudaicompanionProject: { id: "nested-id" } }), "nested-id");
   assert.equal(googleProjectId({}), null);
+});
+
+test("parses Antigravity retrieveUserQuotaSummary groups and buckets", () => {
+  const windows = parseGoogleQuotaSummary({
+    groups: [
+      {
+        displayName: "Claude and GPT models",
+        buckets: [
+          { bucketId: "3p-weekly", displayName: "Weekly Limit Remaining", window: "weekly", resetTime: "2026-11-08T15:10:49Z", remainingFraction: 0.75 },
+          { bucketId: "3p-5h", displayName: "Five Hour Limit Remaining", window: "5h", resetTime: "2026-11-01T20:10:49Z", remainingFraction: 0.9 },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(windows.map((window) => window.name), [
+    "Claude and GPT models (weekly limit)",
+    "Claude and GPT models (5-hour limit)",
+  ]);
+  assert.equal(windows[0].usedPercent, 25);
+  assert.equal(windows[0].durationMinutes, 10_080);
+  assert.equal(Math.round(windows[1].usedPercent), 10);
+  assert.equal(windows[1].durationMinutes, 300);
+});
+
+test("parses go-keyring-base64 payload from Antigravity keychain", () => {
+  const rawJson = JSON.stringify({
+    token: {
+      access_token: "ya29.test",
+      refresh_token: "1//refresh",
+      expiry: "2026-11-01T21:30:43.410332+07:00",
+    },
+    auth_method: "consumer",
+  });
+  const encoded = `go-keyring-base64:${Buffer.from(rawJson, "utf8").toString("base64")}`;
+  const parsed = parseKeyringPayload(encoded);
+  assert.equal(parsed.source, "keychain");
+  assert.equal(parsed.access_token, "ya29.test");
+  assert.equal(parsed.refresh_token, "1//refresh");
+  assert.ok(parsed.expiry_date > 0);
 });

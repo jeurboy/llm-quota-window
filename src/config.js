@@ -130,22 +130,34 @@ function kimiCredentialsPath() {
 }
 
 // --- Google (Gemini CLI & Antigravity) ---
-// No OAuth client is embedded. Set GEMINI_OAUTH_CLIENT_ID and
-// GEMINI_OAUTH_CLIENT_SECRET (the Gemini CLI's public installed-app client,
-// published in google-gemini/gemini-cli) to let the app refresh expired tokens
-// itself; otherwise it uses the stored token until the CLI or Antigravity
-// refreshes it.
+// No OAuth client is embedded in the repository. Set GEMINI_OAUTH_CLIENT_ID /
+// GEMINI_OAUTH_CLIENT_SECRET (or ANTIGRAVITY_OAUTH_CLIENT_ID /
+// ANTIGRAVITY_OAUTH_CLIENT_SECRET) to override, or let the app extract the
+// public installed-app OAuth client from the local Antigravity / Gemini CLI
+// installation at runtime.
 const GEMINI_OAUTH_CLIENT_ID = process.env.GEMINI_OAUTH_CLIENT_ID || null;
 const GEMINI_OAUTH_CLIENT_SECRET = process.env.GEMINI_OAUTH_CLIENT_SECRET || null;
+const ANTIGRAVITY_OAUTH_CLIENT_ID = process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || null;
+const ANTIGRAVITY_OAUTH_CLIENT_SECRET = process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || null;
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CLOUD_CODE_LOAD_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+const CLOUD_CODE_QUOTA_SUMMARY_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 const CLOUD_CODE_QUOTA_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
 const CLOUD_CODE_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
-const GEMINI_USAGE_PAGE_URL = "https://codeassist.google.com";
+const GEMINI_USAGE_PAGE_URL = "https://antigravity.google";
 const ANTIGRAVITY_USAGE_PAGE_URL = "https://antigravity.google";
 
 function geminiCredentialsPath() {
   return join(homedir(), ".gemini", "oauth_creds.json");
+}
+
+function geminiCredentialPaths() {
+  return [
+    join(homedir(), ".gemini", "oauth_creds.json"),
+    join(homedir(), ".gemini", "antigravity-cli", "oauth_creds.json"),
+    join(homedir(), ".gemini", "antigravity", "oauth_creds.json"),
+    join(homedir(), ".gemini", "oauth_creds.json.bak"),
+  ];
 }
 
 // --- GitHub Copilot ---
@@ -257,13 +269,17 @@ module.exports = {
   cursorStateDbPath,
   GEMINI_OAUTH_CLIENT_ID,
   GEMINI_OAUTH_CLIENT_SECRET,
+  ANTIGRAVITY_OAUTH_CLIENT_ID,
+  ANTIGRAVITY_OAUTH_CLIENT_SECRET,
   GOOGLE_TOKEN_URL,
   CLOUD_CODE_LOAD_URL,
+  CLOUD_CODE_QUOTA_SUMMARY_URL,
   CLOUD_CODE_QUOTA_URL,
   CLOUD_CODE_MODELS_URL,
   GEMINI_USAGE_PAGE_URL,
   ANTIGRAVITY_USAGE_PAGE_URL,
   geminiCredentialsPath,
+  geminiCredentialPaths,
   COPILOT_USAGE_URL,
   COPILOT_USAGE_PAGE_URL,
   COPILOT_API_VERSION,

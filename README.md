@@ -8,8 +8,7 @@ A compact 660×460, resizable landscape desktop dashboard for the subscription q
 - Codex: the quota windows returned by the locally installed Codex CLI, plus available reset credits.
 - Kimi Code: the 5-hour rate window and weekly quota of the signed-in Kimi membership, including live percentage used and reset time.
 - Cursor: included-plan and on-demand usage for the current billing cycle of the Cursor account signed in to the Cursor editor, including percentage used and the cycle end date.
-- Gemini: daily model quotas (Pro/Flash tiers) of the Google account signed in with the Gemini CLI or Antigravity, read from `~/.gemini/oauth_creds.json`.
-- Antigravity: per-model quotas when the account has Antigravity-specific allowances; hidden when it shares the Gemini pool.
+- Gemini / Antigravity: daily model quotas (Pro/Flash tiers) or per-model Antigravity quotas of the signed-in Google account, read from `~/.gemini/oauth_creds.json` with automatic OAuth token refresh.
 - Copilot: premium request and chat quota of the GitHub account signed in to Copilot in an editor, read from `~/.config/github-copilot`.
 - OpenRouter: remaining API credits and total usage when `OPENROUTER_MANAGEMENT_KEY` is set.
 - OpenAI API: organization month-to-date costs when `OPENAI_ADMIN_KEY` is set.
@@ -77,7 +76,7 @@ The current macOS release is built for Apple Silicon (M1 or newer).
 
 ### macOS DMG
 
-1. Open `releases/v0.2.7/Quota Window-0.2.7-arm64.dmg`.
+1. Open `releases/v0.2.8/Quota Window-0.2.8-arm64.dmg`.
 2. Drag **Quota Window** into **Applications**.
 3. Open **Quota Window** from Applications.
 
@@ -91,14 +90,14 @@ open "/Applications/Quota Window.app"
 You can also run the unpacked app directly:
 
 ```bash
-open "releases/v0.2.7/mac-arm64/Quota Window.app"
+open "releases/v0.2.8/mac-arm64/Quota Window.app"
 ```
 
-For the ZIP release, extract `Quota Window-0.2.7-arm64-mac.zip`, then open `Quota Window.app`.
+For the ZIP release, extract `Quota Window-0.2.8-arm64-mac.zip`, then open `Quota Window.app`.
 
 ### Windows
 
-After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.2.7/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
+After building on Windows with `npm run dist:win`, open the installer or portable `.exe` generated in `releases/v0.2.8/`. If Windows SmartScreen appears for an unsigned local build, choose **More info** and then **Run anyway**.
 
 ## Build installers
 
@@ -143,7 +142,7 @@ The release script regenerates native 1x/2x macOS menu-bar template icons from `
 - Windows: the app checks the standard Claude Code credentials files. If Claude is not detected, sign in again with `claude auth login`.
 - Codex's app-server is used rather than scraping a web page, so its returned quota windows and reset times are authoritative for the signed-in Codex account.
 - Kimi Code credentials are read from `~/.kimi-code/credentials/kimi-code.json` (or `$KIMI_CODE_HOME`). Gemini/Antigravity credentials are read from `~/.gemini/oauth_creds.json`.
-- No OAuth client ids are embedded in the app. Expired Kimi and Google tokens are refreshed by their own CLIs when used; to let Quota Window refresh them itself, set `KIMI_CLIENT_ID` or `GEMINI_OAUTH_CLIENT_ID`/`GEMINI_OAUTH_CLIENT_SECRET` to the public client values of those CLIs.
+- Google (Gemini / Antigravity) tokens are refreshed automatically using the public Gemini CLI OAuth client; set `GEMINI_OAUTH_CLIENT_ID`/`GEMINI_OAUTH_CLIENT_SECRET` to override. Expired Kimi tokens are refreshed using the Kimi Code CLI's public client ID (or `KIMI_CLIENT_ID`).
 - Cursor's session is read from the Cursor editor's local state store (`state.vscdb` under the Cursor user-data directory) and used only to call Cursor's own usage endpoint. Cursor has no public usage API, so this endpoint may change without notice; if it does, the Cursor card shows an error until the app is updated.
 
 ## Security model
